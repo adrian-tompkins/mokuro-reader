@@ -3,7 +3,20 @@ export type Block = {
   vertical: boolean;
   font_size: number;
   lines: string[];
+  translation: string;
+  line_translations: LineTranslation[];
 };
+
+export type LineTranslation = {
+  words: Word[];
+}
+
+export type Word = {
+  word: string;
+  dictionary_entry: string;
+  meaning: string;
+  sentence_form: string;
+}
 
 export type Page = {
   version: string;

@@ -1,7 +1,7 @@
 import { showSnackbar } from '$lib/util';
 import { writable } from 'svelte/store';
 import { blobToBase64, imageResize } from '.';
-import { Settings } from '$lib/settings';
+import type { Settings } from '$lib/settings';
 
 type CropperModal = {
   open: boolean;

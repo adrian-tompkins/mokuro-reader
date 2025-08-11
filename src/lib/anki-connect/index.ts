@@ -1,4 +1,4 @@
-import { Settings, settings } from "$lib/settings";
+import type { Settings, settings } from "$lib/settings";
 import { showSnackbar } from "$lib/util"
 import { get } from "svelte/store";
 
