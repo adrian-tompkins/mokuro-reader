@@ -95,6 +95,40 @@
     e.stopPropagation();
     openTranslation = openTranslation === boxIdx ? null : boxIdx;
   }
+
+    // Copy support
+  let copiedBox: number | null = null;
+  let copyTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function getTextToCopy(
+    lines: string[],
+    line_translations?: { words: { word: string }[] }[]
+  ): string {
+    if (line_translations?.length) {
+      return line_translations
+        .map((l) => (l.words ?? []).map((w) => w.word).join(''))
+        .join('\n');
+    }
+    return (lines ?? []).join('\n');
+  }
+
+  async function copyText(
+    e: MouseEvent,
+    lines: string[],
+    line_translations: { words: { word: string }[] }[] | undefined,
+    boxIdx: number
+  ) {
+    e.stopPropagation();
+    try {
+      const text = getTextToCopy(lines, line_translations);
+      await navigator.clipboard.writeText(text);
+      copiedBox = boxIdx;
+      if (copyTimer) clearTimeout(copyTimer);
+      copyTimer = setTimeout(() => (copiedBox = null), 1500);
+    } catch {
+      // no-op; could add toast if desired
+    }
+  }
 </script>
 
 {#each textBoxes as { fontSize, height, left, lines, line_translations, translation, top, width, writingMode }, index (`textBox-${index}`)}
@@ -131,7 +165,18 @@
                 openDetail.line === lineIdx &&
                 openDetail.word === wordIdx}
             >
-              <span>{word.dictionary_entry}<br></span>
+              {#if word.word !== word.hiragana}
+                <span>{word.word} ({word.hiragana})<br></span>
+              {:else}
+                <span>{word.word}<br></span>
+              {/if}
+              {#if word.word !== word.dictionary_entry}
+                {#if word.dictionary_entry !== word.dictionary_hiragana}
+                  <span>{word.dictionary_entry} ({word.dictionary_hiragana})<br></span>
+                {:else}
+                  <span>{word.dictionary_entry}<br></span>
+                {/if}
+              {/if}
               <span>{word.sentence_form}<br></span>
               <span>{word.meaning}<br></span>
             </div>
@@ -144,13 +189,18 @@
       {/each}
     {/if}
     {#if translation?.trim()}
-      <span class="translationWrapper">
+      <span class="actionWrapper">
         <span
           class="translationIcon"
           title="Show translation"
           on:click={(e) => toggleTranslation(e, index)}
           >💬</span
         >
+        <span
+          class="copyIcon"
+          title="Copy text"
+          on:click={(e) => copyText(e, lines, line_translations, index)}
+        >{copiedBox === index ? '✅' : '📋'}</span>
         <div class="translationDetail" class:show={openTranslation === index}>
           <div class="translationContent">{translation}</div>
         </div>
@@ -200,6 +250,8 @@
     writing-mode: horizontal-tb;  
     text-orientation: mixed;
     direction: ltr;
+    width: max-content;
+    max-width: 48rem;
   }
    .wordDetail.show {
     display: block;
@@ -217,14 +269,15 @@
     z-index: 11;
   }
 
-  .translationWrapper {
+  .actionWrapper {
     position: relative;
     display: none;
   }
-  .textBox:hover .translationWrapper,
-  .textBox:focus .translationWrapper {
+  .textBox:hover .actionWrapper,
+  .textBox:focus .actionWrapper {
     display: inline-block; /* show on hover/focus like the lines */
   }
+  .copyIcon,
   .translationIcon {
     cursor: pointer;
     user-select: none;
@@ -261,12 +314,12 @@
   /* Progressive enhancement: CSS Anchor Positioning */
   @supports (anchor-name: --a) and (position-try: flip-inline) {
     /* Make the icon an anchor */
-    .translationWrapper {
+    .actionWrapper .wordWrapper {
       anchor-name: --tr;
       writing-mode: horizontal-tb; /* inline axis = left/right */
     }
 
-    .translationDetail {
+    .translationDetail .wordDetail {
       /* Anchor to viewport to avoid ancestor clipping and test against screen edges */
       position: fixed;
       position-anchor: --tr;

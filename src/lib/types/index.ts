@@ -13,7 +13,9 @@ export type LineTranslation = {
 
 export type Word = {
   word: string;
+  hiragana: string;
   dictionary_entry: string;
+  dictionary_hiragana: string;
   meaning: string;
   sentence_form: string;
 }
