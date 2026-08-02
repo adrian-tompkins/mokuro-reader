@@ -1,5 +1,6 @@
 <script lang="ts">
   import { toggleFullScreen } from '$lib/util/fullscreen';
+  import { nav } from '$lib/util/hash-router';
   import { pagedZoom } from '$lib/reader/paged-zoom';
   import { settings, volumes, updateSetting } from '$lib/settings';
   import {
@@ -7,6 +8,7 @@
     ArrowRightOutline,
     CompressOutline,
     ImageOutline,
+    HomeOutline,
     ZoomOutOutline,
     PlusOutline
   } from 'flowbite-svelte-icons';
@@ -68,6 +70,11 @@
   function handleRight(_e: Event) {
     right(_e, true);
     open = false;
+  }
+
+  function handleHome() {
+    open = false;
+    nav.toCatalog();
   }
 
   async function onUpdateCard(src: File | undefined, page?: Page, pageNumber?: number) {
@@ -146,6 +153,13 @@
           aria-label="Previous page"
         >
           <ArrowLeftOutline size="xl" />
+        </button>
+        <button
+          onclick={handleHome}
+          class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-700 text-gray-300 shadow-lg hover:bg-gray-600 focus:outline-none dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+          aria-label="Go to catalog"
+        >
+          <HomeOutline size="xl" />
         </button>
       </div>
     {/if}
