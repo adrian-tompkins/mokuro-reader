@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/svelte';
+import { fireEvent, render } from '@testing-library/svelte';
 import { get, writable, type Writable } from 'svelte/store';
 import TextBoxes from '../TextBoxes.svelte';
 import { settings } from '$lib/settings';
@@ -80,6 +80,41 @@ function makePage(blocks: unknown[]): Page {
 }
 
 describe('TextBoxes auto mode with lines_coords', () => {
+  it('opens translation and contextual word details from an AI sidecar page', async () => {
+    const { container, getByText } = render(TextBoxes, {
+      page: makePage([blockWithCoords]),
+      volumeUuid: 'test-uuid',
+      aiPage: {
+        page_index: 0,
+        img_path: 'page_001.jpg',
+        blocks: [
+          {
+            block_index: 0,
+            block_key: 'key',
+            source_lines: blockWithCoords.lines,
+            corrected_lines: blockWithCoords.lines,
+            translation: 'It makes entering and leaving the barrier possible.',
+            words: [
+              {
+                surface: '可能',
+                reading: 'かのう',
+                dictionary_form: '可能',
+                dictionary_reading: 'かのう',
+                meaning: 'possible',
+                grammar: 'na-adjective'
+              }
+            ]
+          }
+        ]
+      }
+    });
+
+    await fireEvent.click(getByText('AI'));
+    expect(getByText('It makes entering and leaving the barrier possible.')).toBeTruthy();
+    await fireEvent.click(getByText('可能'));
+    expect(container.querySelector('.aiWordDetail')?.textContent).toContain('possible');
+  });
+
   it('renders each line as a positioned span sized from its quad', () => {
     const { container } = render(TextBoxes, {
       page: makePage([blockWithCoords]),
