@@ -80,6 +80,41 @@ function makePage(blocks: unknown[]): Page {
 }
 
 describe('TextBoxes auto mode with lines_coords', () => {
+  it('portals the translation panel to the viewport on touch devices', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true });
+
+    try {
+      const { container, unmount } = render(TextBoxes, {
+        page: makePage([blockWithCoords]),
+        volumeUuid: 'test-uuid',
+        aiPage: {
+          page_index: 0,
+          img_path: 'page_001.jpg',
+          blocks: [
+            {
+              block_index: 0,
+              block_key: 'key',
+              source_lines: blockWithCoords.lines,
+              corrected_lines: blockWithCoords.lines,
+              translation: 'A viewport translation.',
+              words: []
+            }
+          ]
+        }
+      });
+
+      await fireEvent.click(container.querySelector('.textBox.hasAi')!);
+      const panel = document.body.querySelector('.aiPanel.mobileViewportPanel');
+      expect(panel).toBeTruthy();
+      expect(container.contains(panel)).toBe(false);
+      unmount();
+      expect(document.body.querySelector('.aiPanel.mobileViewportPanel')).toBeNull();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
   it('opens translation and contextual word details from an AI sidecar page', async () => {
     const { container, getByText, queryByText } = render(TextBoxes, {
       page: makePage([blockWithCoords]),

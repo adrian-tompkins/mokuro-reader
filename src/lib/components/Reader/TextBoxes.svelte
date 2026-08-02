@@ -621,10 +621,25 @@
 
   let openAiBlock = $state<number | null>(null);
   let openAiWord = $state<number | null>(null);
+  let mobileAiPanel = $state(false);
+
+  function portalToBody(node: HTMLElement, enabled: boolean) {
+    if (enabled) document.body.appendChild(node);
+
+    return {
+      update(nextEnabled: boolean) {
+        if (nextEnabled && node.parentNode !== document.body) document.body.appendChild(node);
+      },
+      destroy() {
+        if (enabled && node.parentNode === document.body) node.remove();
+      }
+    };
+  }
 
   function showAi(event: MouseEvent, blockIndex: number) {
     event.stopPropagation();
     if (window.getSelection()?.toString()) return;
+    mobileAiPanel = window.matchMedia?.('(hover: none), (pointer: coarse)').matches ?? false;
     openAiBlock = blockIndex;
     openAiWord = null;
   }
@@ -689,7 +704,12 @@
     </p>
     {#if ai}
       {#if openAiBlock === blockIndex}
-        <div class="aiPanel" onpointerdown={(event) => event.stopPropagation()}>
+        <div
+          use:portalToBody={mobileAiPanel}
+          class="aiPanel"
+          class:mobileViewportPanel={mobileAiPanel}
+          onpointerdown={(event) => event.stopPropagation()}
+        >
           <div class="aiHeading">Translation</div>
           <div>{ai.translation}</div>
           {#if ai.corrected_lines.join('') !== ai.source_lines.join('')}
@@ -891,19 +911,21 @@
     background: #f1f5f9;
   }
 
+  .aiPanel.mobileViewportPanel {
+    position: fixed;
+    inset: 50% max(12px, env(safe-area-inset-right)) auto max(12px, env(safe-area-inset-left));
+    width: auto;
+    max-height: min(70dvh, 36rem);
+    padding: 16px;
+    border-radius: 12px;
+    transform: translateY(-50%);
+    font-size: 16px;
+    z-index: 10000;
+  }
+
   @media (hover: none), (pointer: coarse) {
     .textBox.hasAi {
       touch-action: manipulation;
-    }
-
-    .aiPanel {
-      position: fixed;
-      inset: auto 12px 12px;
-      width: auto;
-      max-height: min(60vh, 32rem);
-      padding: 16px;
-      border-radius: 12px;
-      z-index: 100;
     }
 
     .aiWords button {
