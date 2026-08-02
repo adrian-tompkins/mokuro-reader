@@ -622,9 +622,10 @@
   let openAiBlock = $state<number | null>(null);
   let openAiWord = $state<number | null>(null);
 
-  function toggleAi(event: MouseEvent, blockIndex: number) {
+  function showAi(event: MouseEvent, blockIndex: number) {
     event.stopPropagation();
-    openAiBlock = openAiBlock === blockIndex ? null : blockIndex;
+    if (window.getSelection()?.toString()) return;
+    openAiBlock = blockIndex;
     openAiWord = null;
   }
 
@@ -646,6 +647,7 @@
     class:perLine={usePerLine}
     class:forceVisible
     class:alwaysVisible={alwaysShowOCR}
+    class:hasAi={Boolean(ai)}
     style:width={usePerLine ? width : isOriginalMode || useMinDimensions ? undefined : width}
     style:height={usePerLine ? height : isOriginalMode || useMinDimensions ? undefined : height}
     style:min-width={isOriginalMode ? undefined : useMinDimensions ? width : undefined}
@@ -660,6 +662,9 @@
     role="none"
     oncontextmenu={(e) => handleContextMenu(e, lines, blockIndex)}
     ondblclick={(e) => onDoubleTap(e, lines, blockIndex)}
+    onclick={(event) => {
+      if (ai) showAi(event, blockIndex);
+    }}
     oncopy={onCopy}
     {contenteditable}
   >
@@ -683,14 +688,6 @@
       {/if}
     </p>
     {#if ai}
-      <div class="aiActions" onpointerdown={(event) => event.stopPropagation()}>
-        <button
-          type="button"
-          title="Translation and word details"
-          aria-expanded={openAiBlock === blockIndex}
-          onclick={(event) => toggleAi(event, blockIndex)}>AI</button
-        >
-      </div>
       {#if openAiBlock === blockIndex}
         <div class="aiPanel" onpointerdown={(event) => event.stopPropagation()}>
           <div class="aiHeading">Translation</div>
@@ -833,21 +830,9 @@
     white-space: pre;
   }
 
-  .aiActions {
-    display: none;
-    position: absolute;
-    left: 0;
-    top: 100%;
-    gap: 4px;
-    writing-mode: horizontal-tb;
-    z-index: 20;
+  .textBox.hasAi {
+    cursor: pointer;
   }
-  .textBox:hover .aiActions,
-  .textBox:focus-within .aiActions,
-  .textBox.alwaysVisible .aiActions {
-    display: flex;
-  }
-  .aiActions button,
   .aiWords button {
     border: 1px solid #64748b;
     border-radius: 4px;
@@ -905,15 +890,7 @@
   }
 
   @media (hover: none), (pointer: coarse) {
-    .textBox .aiActions {
-      display: flex;
-    }
-
-    .aiActions button {
-      min-width: 36px;
-      min-height: 36px;
-      padding: 8px 10px;
-      font-size: 14px;
+    .textBox.hasAi {
       touch-action: manipulation;
     }
 

@@ -109,7 +109,11 @@ describe('TextBoxes auto mode with lines_coords', () => {
       }
     });
 
-    await fireEvent.click(getByText('AI'));
+    const textBox = container.querySelector('.textBox.hasAi');
+    expect(textBox).toBeTruthy();
+    expect(queryByText('AI')).toBeNull();
+    await fireEvent.pointerDown(textBox!);
+    await fireEvent.click(textBox!);
     expect(getByText('It makes entering and leaving the barrier possible.')).toBeTruthy();
     expect(queryByText('Copy EN')).toBeNull();
     await fireEvent.click(getByText('可能'));
