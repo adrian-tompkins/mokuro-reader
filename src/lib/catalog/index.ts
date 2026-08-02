@@ -8,6 +8,48 @@ import { generatePlaceholders } from '$lib/catalog/placeholders';
 import { routeParams } from '$lib/util/hash-router';
 import { getLegacyImageOnlyVolumeUuid } from '$lib/util/download-volume-repair';
 
+const AI_REFRESH_INTERVAL_MS = 15_000;
+const AI_DOWNLOAD_ATTEMPTS = 3;
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function downloadAiSidecar(
+  provider: NonNullable<ReturnType<typeof unifiedCloudManager.getActiveProvider>>,
+  remoteAi: ReturnType<typeof unifiedCloudManager.getAllCloudVolumes>[number],
+  volume: VolumeMetadata,
+  existingAi: import('$lib/types').VolumeAI | undefined
+): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= AI_DOWNLOAD_ATTEMPTS; attempt += 1) {
+    try {
+      const parsed = JSON.parse(
+        await (await provider.downloadFile(remoteAi)).text()
+      ) as import('$lib/types').VolumeAI;
+      if (
+        parsed.schema_version !== 1 ||
+        parsed.volume_uuid !== volume.volume_uuid ||
+        !Array.isArray(parsed.pages)
+      ) {
+        throw new Error('Invalid AI sidecar structure');
+      }
+      if (
+        !existingAi ||
+        (parsed.updated_at > existingAi.updated_at &&
+          parsed.pages.length >= existingAi.pages.length)
+      ) {
+        await db.volume_ai.put(parsed);
+      }
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < AI_DOWNLOAD_ATTEMPTS) await delay(500 * attempt);
+    }
+  }
+  throw lastError;
+}
+
 async function loadCurrentVolumeData(volume: VolumeMetadata): Promise<VolumeData | undefined> {
   const provider = unifiedCloudManager.getActiveProvider();
   if (provider) {
@@ -21,18 +63,12 @@ async function loadCurrentVolumeData(volume: VolumeMetadata): Promise<VolumeData
       const remoteModified = Date.parse(remoteAi.modifiedTime || '') || 0;
       if (!existingAi || existingAi.updated_at * 1000 < remoteModified) {
         try {
-          const parsed = JSON.parse(
-            await (await provider.downloadFile(remoteAi)).text()
-          ) as import('$lib/types').VolumeAI;
-          if (
-            parsed.schema_version === 1 &&
-            parsed.volume_uuid === volume.volume_uuid &&
-            Array.isArray(parsed.pages)
-          ) {
-            await db.volume_ai.put(parsed);
-          }
+          await downloadAiSidecar(provider, remoteAi, volume, existingAi);
         } catch (error) {
-          console.warn('Failed to refresh AI sidecar:', error);
+          console.warn(
+            `Failed to refresh AI sidecar after ${AI_DOWNLOAD_ATTEMPTS} attempts:`,
+            error
+          );
         }
       }
     }
@@ -158,6 +194,8 @@ export const currentVolume = derived([routeParams, volumes], ([$routeParams, $vo
 export const currentVolumeData: Readable<VolumeData | undefined> = derived(
   [currentVolume, unifiedCloudManager.cloudFiles],
   ([$currentVolume], set: (value: VolumeData | undefined) => void) => {
+    let cancelled = false;
+    let refreshTimer: ReturnType<typeof setInterval> | undefined;
     // Track the last volume UUID to avoid unnecessary clears
     // This prevents flash when unrelated volumes are added to the database
     const newUuid = $currentVolume?.volume_uuid;
@@ -171,16 +209,33 @@ export const currentVolumeData: Readable<VolumeData | undefined> = derived(
     }
 
     if ($currentVolume) {
-      loadCurrentVolumeData($currentVolume)
-        .then((volumeData) => {
-          if (volumeData) {
+      const refresh = async (refreshCloudFiles = false) => {
+        try {
+          if (refreshCloudFiles) await unifiedCloudManager.fetchAllCloudVolumes();
+          const volumeData = await loadCurrentVolumeData($currentVolume);
+          if (!cancelled && volumeData) {
             set(volumeData);
+            if (
+              refreshTimer &&
+              volumeData.ai &&
+              volumeData.ai.pages.length >= volumeData.pages.length
+            ) {
+              clearInterval(refreshTimer);
+              refreshTimer = undefined;
+            }
           }
-        })
-        .catch((error) => {
+        } catch (error) {
           console.error('Failed to load current volume data:', error);
-        });
+        }
+      };
+      void refresh();
+      refreshTimer = setInterval(() => void refresh(true), AI_REFRESH_INTERVAL_MS);
     }
+
+    return () => {
+      cancelled = true;
+      if (refreshTimer) clearInterval(refreshTimer);
+    };
   },
   undefined // Initial value
 );
