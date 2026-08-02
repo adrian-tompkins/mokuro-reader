@@ -27,19 +27,16 @@ async function downloadAiSidecar(
       const parsed = JSON.parse(
         await (await provider.downloadFile(remoteAi)).text()
       ) as import('$lib/types').VolumeAI;
-      if (
-        parsed.schema_version !== 1 ||
-        parsed.volume_uuid !== volume.volume_uuid ||
-        !Array.isArray(parsed.pages)
-      ) {
+      if (parsed.schema_version !== 1 || !Array.isArray(parsed.pages)) {
         throw new Error('Invalid AI sidecar structure');
       }
+      const canonicalAi = { ...parsed, volume_uuid: volume.volume_uuid };
       if (
         !existingAi ||
-        (parsed.updated_at > existingAi.updated_at &&
-          parsed.pages.length >= existingAi.pages.length)
+        (canonicalAi.updated_at > existingAi.updated_at &&
+          canonicalAi.pages.length >= existingAi.pages.length)
       ) {
-        await db.volume_ai.put(parsed);
+        await db.volume_ai.put(canonicalAi);
       }
       return;
     } catch (error) {
