@@ -102,6 +102,14 @@ describe('TextBoxes auto mode with lines_coords', () => {
                 dictionary_reading: 'かのう',
                 meaning: 'possible',
                 grammar: 'na-adjective'
+              },
+              {
+                surface: '結界',
+                reading: 'けっかい',
+                dictionary_form: '結界',
+                dictionary_reading: 'けっかい',
+                meaning: 'barrier',
+                grammar: 'noun'
               }
             ]
           }
@@ -118,6 +126,13 @@ describe('TextBoxes auto mode with lines_coords', () => {
     expect(queryByText('Copy EN')).toBeNull();
     await fireEvent.click(getByText('可能'));
     expect(container.querySelector('.aiWordDetail')?.textContent).toContain('possible');
+    const aiWords = container.querySelector('.aiWords');
+    expect(aiWords?.lastElementChild?.classList.contains('aiWordDetail')).toBe(true);
+    expect(
+      Array.from(aiWords?.querySelectorAll('button') || []).map((button) => button.textContent)
+    ).toEqual(['可能', '結界']);
+    await fireEvent.click(getByText('結界'));
+    expect(aiWords?.lastElementChild?.textContent).toContain('barrier');
     await fireEvent.pointerDown(document.body);
     expect(queryByText('It makes entering and leaving the barrier possible.')).toBeNull();
   });

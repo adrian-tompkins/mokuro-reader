@@ -708,18 +708,20 @@
                     openAiWord = openAiWord === wordIndex ? null : wordIndex;
                   }}>{word.surface}</button
                 >
-                {#if openAiWord === wordIndex}
-                  <div class="aiWordDetail">
-                    <strong>{word.surface}</strong>{word.reading && word.reading !== word.surface
-                      ? ` (${word.reading})`
-                      : ''}<br />
-                    {#if word.dictionary_form && word.dictionary_form !== word.surface}{word.dictionary_form}{word.dictionary_reading
-                        ? ` (${word.dictionary_reading})`
-                        : ''}<br />{/if}
-                    {word.meaning}{word.grammar ? ` · ${word.grammar}` : ''}
-                  </div>
-                {/if}
               {/each}
+              {#if openAiWord !== null && ai.words[openAiWord]}
+                {@const selectedWord = ai.words[openAiWord]}
+                <div class="aiWordDetail">
+                  <strong>{selectedWord.surface}</strong>{selectedWord.reading &&
+                  selectedWord.reading !== selectedWord.surface
+                    ? ` (${selectedWord.reading})`
+                    : ''}<br />
+                  {#if selectedWord.dictionary_form && selectedWord.dictionary_form !== selectedWord.surface}{selectedWord.dictionary_form}{selectedWord.dictionary_reading
+                      ? ` (${selectedWord.dictionary_reading})`
+                      : ''}<br />{/if}
+                  {selectedWord.meaning}{selectedWord.grammar ? ` · ${selectedWord.grammar}` : ''}
+                </div>
+              {/if}
             </div>
           {/if}
         </div>

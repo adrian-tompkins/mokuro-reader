@@ -7,9 +7,11 @@ import { unifiedCloudManager } from '$lib/util/sync/unified-cloud-manager';
 import { generatePlaceholders } from '$lib/catalog/placeholders';
 import { routeParams } from '$lib/util/hash-router';
 import { getLegacyImageOnlyVolumeUuid } from '$lib/util/download-volume-repair';
+import type { CloudFileMetadata } from '$lib/util/sync/provider-interface';
 
 const AI_REFRESH_INTERVAL_MS = 15_000;
 const AI_DOWNLOAD_ATTEMPTS = 3;
+const discoveredAiFiles = new Map<string, CloudFileMetadata>();
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -47,18 +49,28 @@ async function downloadAiSidecar(
   throw lastError;
 }
 
-async function loadCurrentVolumeData(volume: VolumeMetadata): Promise<VolumeData | undefined> {
+async function loadCurrentVolumeData(
+  volume: VolumeMetadata,
+  pollAi = false
+): Promise<VolumeData | undefined> {
   const provider = unifiedCloudManager.getActiveProvider();
   if (provider) {
     const cloudPath = volume.cloudPath || `${volume.series_title}/${volume.volume_title}.cbz`;
     const aiPath = cloudPath.replace(/\.(cbz|zip|cbr|rar|7z)$/i, '.mokuro-ai.json').toLowerCase();
-    const remoteAi = unifiedCloudManager
-      .getAllCloudVolumes()
-      .find((file) => file.path.toLowerCase() === aiPath);
+    const discoveryKey = `${provider.type}:${aiPath}`;
+    let remoteAi =
+      unifiedCloudManager.getAllCloudVolumes().find((file) => file.path.toLowerCase() === aiPath) ||
+      discoveredAiFiles.get(discoveryKey);
+    if (!remoteAi && pollAi) {
+      remoteAi = (await provider.listCloudVolumes()).find(
+        (file) => file.path.toLowerCase() === aiPath
+      );
+      if (remoteAi) discoveredAiFiles.set(discoveryKey, remoteAi);
+    }
     if (remoteAi) {
       const existingAi = await db.volume_ai.get(volume.volume_uuid);
       const remoteModified = Date.parse(remoteAi.modifiedTime || '') || 0;
-      if (!existingAi || existingAi.updated_at * 1000 < remoteModified) {
+      if (pollAi || !existingAi || existingAi.updated_at * 1000 < remoteModified) {
         try {
           await downloadAiSidecar(provider, remoteAi, volume, existingAi);
         } catch (error) {
@@ -206,10 +218,9 @@ export const currentVolumeData: Readable<VolumeData | undefined> = derived(
     }
 
     if ($currentVolume) {
-      const refresh = async (refreshCloudFiles = false) => {
+      const refresh = async (pollAi = false) => {
         try {
-          if (refreshCloudFiles) await unifiedCloudManager.fetchAllCloudVolumes();
-          const volumeData = await loadCurrentVolumeData($currentVolume);
+          const volumeData = await loadCurrentVolumeData($currentVolume, pollAi);
           if (!cancelled && volumeData) {
             set(volumeData);
             if (
