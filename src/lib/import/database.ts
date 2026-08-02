@@ -90,42 +90,51 @@ export async function saveVolume(
   };
 
   // Write to all 3 tables atomically
-  await db.transaction('rw', [db.volumes, db.volume_ocr, db.volume_files], async () => {
-    const [existingVolume, existingOcr, existingFiles] = await Promise.all([
-      db.volumes.get(canonicalVolumeUuid),
-      db.volume_ocr.get(canonicalVolumeUuid),
-      db.volume_files.get(canonicalVolumeUuid)
-    ]);
+  await db.transaction(
+    'rw',
+    [db.volumes, db.volume_ocr, db.volume_files, db.volume_ai],
+    async () => {
+      const [existingVolume, existingOcr, existingFiles, existingAi] = await Promise.all([
+        db.volumes.get(canonicalVolumeUuid),
+        db.volume_ocr.get(canonicalVolumeUuid),
+        db.volume_files.get(canonicalVolumeUuid),
+        db.volume_ai.get(canonicalVolumeUuid)
+      ]);
 
-    if (existingVolume) {
-      throw new Error(`Volume ${canonicalVolumeUuid} already exists in database`);
+      if (existingVolume) {
+        throw new Error(`Volume ${canonicalVolumeUuid} already exists in database`);
+      }
+
+      // Clean up stale rows left behind by an interrupted delete before re-importing.
+      if (existingOcr) {
+        await db.volume_ocr.delete(canonicalVolumeUuid);
+      }
+
+      if (existingFiles) {
+        await db.volume_files.delete(canonicalVolumeUuid);
+      }
+      if (existingAi) await db.volume_ai.delete(canonicalVolumeUuid);
+
+      // Write metadata
+      await db.volumes.add(volumeMetadata);
+
+      // Write OCR data (strip cumulativeChars as it's stored in page_char_counts)
+      const pagesForDb = ocrData.pages.map(({ cumulativeChars, ...page }) => page);
+      await db.volume_ocr.add({
+        volume_uuid: canonicalVolumeUuid,
+        pages: pagesForDb as any // Cast to any since Page type is stricter
+      });
+
+      // Write files
+      await db.volume_files.add({
+        volume_uuid: canonicalVolumeUuid,
+        files: sortedFiles
+      });
+      if (volume.aiData) {
+        await db.volume_ai.put({ ...volume.aiData, volume_uuid: canonicalVolumeUuid });
+      }
     }
-
-    // Clean up stale rows left behind by an interrupted delete before re-importing.
-    if (existingOcr) {
-      await db.volume_ocr.delete(canonicalVolumeUuid);
-    }
-
-    if (existingFiles) {
-      await db.volume_files.delete(canonicalVolumeUuid);
-    }
-
-    // Write metadata
-    await db.volumes.add(volumeMetadata);
-
-    // Write OCR data (strip cumulativeChars as it's stored in page_char_counts)
-    const pagesForDb = ocrData.pages.map(({ cumulativeChars, ...page }) => page);
-    await db.volume_ocr.add({
-      volume_uuid: canonicalVolumeUuid,
-      pages: pagesForDb as any // Cast to any since Page type is stricter
-    });
-
-    // Write files
-    await db.volume_files.add({
-      volume_uuid: canonicalVolumeUuid,
-      files: sortedFiles
-    });
-  });
+  );
 
   // Import-time thumbnail generation can fail for some files.
   // Trigger best-effort background recovery so UI placeholders resolve
@@ -149,9 +158,14 @@ export async function saveVolume(
  * @param volumeUuid - The volume UUID to delete
  */
 export async function deleteVolume(volumeUuid: string): Promise<void> {
-  await db.transaction('rw', [db.volumes, db.volume_ocr, db.volume_files], async () => {
-    await db.volumes.delete(volumeUuid);
-    await db.volume_ocr.delete(volumeUuid);
-    await db.volume_files.delete(volumeUuid);
-  });
+  await db.transaction(
+    'rw',
+    [db.volumes, db.volume_ocr, db.volume_files, db.volume_ai],
+    async () => {
+      await db.volumes.delete(volumeUuid);
+      await db.volume_ocr.delete(volumeUuid);
+      await db.volume_files.delete(volumeUuid);
+      await db.volume_ai.delete(volumeUuid);
+    }
+  );
 }

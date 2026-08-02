@@ -11,6 +11,43 @@ export type Block = {
   lines_coords?: number[][][];
 };
 
+export interface AIWord {
+  surface: string;
+  reading: string;
+  dictionary_form: string;
+  dictionary_reading: string;
+  meaning: string;
+  grammar: string;
+}
+
+export interface AIBlock {
+  block_index: number;
+  block_key: string;
+  source_lines: string[];
+  corrected_lines: string[];
+  translation: string;
+  words: AIWord[];
+}
+
+export interface AIPage {
+  page_index: number;
+  img_path: string;
+  blocks: AIBlock[];
+}
+
+export interface VolumeAI {
+  volume_uuid: string;
+  schema_version: number;
+  source_mokuro_sha256: string;
+  target_language: string;
+  model: string;
+  prompt_version: string;
+  created_at: number;
+  updated_at: number;
+  usage: { input_tokens: number; output_tokens: number; total_tokens: number };
+  pages: AIPage[];
+}
+
 export type Page = {
   version: string;
   img_width: number;
@@ -79,4 +116,5 @@ export interface VolumeData {
   volume_uuid: string;
   pages: Page[];
   files?: Record<string, File>;
+  ai?: VolumeAI;
 }

@@ -67,6 +67,11 @@ vi.mock('$lib/catalog/db', () => ({
       }),
       get: vi.fn()
     },
+    volume_ai: {
+      get: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn()
+    },
     transaction: vi
       .fn()
       .mockImplementation(

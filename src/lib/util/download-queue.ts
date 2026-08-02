@@ -304,6 +304,7 @@ async function entriesToDecompressedVolume(
 ): Promise<DecompressedVolume> {
   let mokuroFile: File | null = null;
   let thumbnailSidecar: File | null = null;
+  let aiSidecar: File | null = null;
   const imageFiles = new Map<string, File>();
   const nestedArchives: File[] = [];
 
@@ -316,7 +317,9 @@ async function entriesToDecompressedVolume(
     const normalizedFilename = normalizeFilename(entry.filename);
     const extension = normalizedFilename.toLowerCase().split('.').pop() || '';
 
-    if (normalizedFilename.endsWith('.mokuro')) {
+    if (normalizedFilename.endsWith('.mokuro-ai.json')) {
+      aiSidecar = new File([entry.data], normalizedFilename, { type: 'application/json' });
+    } else if (normalizedFilename.endsWith('.mokuro')) {
       // Found mokuro file
       mokuroFile = new File([entry.data], normalizedFilename, { type: 'application/json' });
     } else if (normalizedFilename.endsWith('.mokuro.gz')) {
@@ -349,6 +352,7 @@ async function entriesToDecompressedVolume(
   return {
     mokuroFile,
     thumbnailSidecar,
+    aiSidecar,
     imageFiles,
     basePath,
     sourceType: 'cloud',
@@ -464,7 +468,7 @@ function getSidecarCandidatesForPlaceholder(placeholder: VolumeMetadata): string
     (placeholder as VolumeMetadata & { cloudPath?: string }).cloudPath ||
     `${placeholder.series_title}/${placeholder.volume_title}.cbz`;
   const noExt = cloudPath.replace(/\.(cbz|zip|cbr|rar|7z)$/i, '');
-  return [`${noExt}.mokuro`, `${noExt}.mokuro.gz`, `${noExt}.webp`];
+  return [`${noExt}.mokuro`, `${noExt}.mokuro.gz`, `${noExt}.mokuro-ai.json`, `${noExt}.webp`];
 }
 
 function normalizePathKey(value: string): string {
@@ -521,6 +525,7 @@ function findSidecarFiles(
     return (
       name === `${targetStem}.mokuro` ||
       name === `${targetStem}.mokuro.gz` ||
+      name === `${targetStem}.mokuro-ai.json` ||
       name === `${targetStem}.webp`
     );
   });

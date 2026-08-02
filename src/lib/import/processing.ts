@@ -470,7 +470,15 @@ function calculateCumulativeChars(pages: MokuroPage[]): number[] {
  * @returns Processed volume ready for database
  */
 export async function processVolume(input: DecompressedVolume): Promise<ProcessedVolume> {
-  const { mokuroFile, imageFiles, basePath, sourceType, nestedArchives, thumbnailSidecar } = input;
+  const {
+    mokuroFile,
+    imageFiles,
+    basePath,
+    sourceType,
+    nestedArchives,
+    thumbnailSidecar,
+    aiSidecar
+  } = input;
 
   // Parse mokuro or extract info from path
   let mokuroData: ParsedMokuro | null = null;
@@ -689,6 +697,23 @@ export async function processVolume(input: DecompressedVolume): Promise<Processe
     spineWidth: mokuroData?.spineWidth
   };
 
+  let aiData: import('$lib/types').VolumeAI | undefined;
+  if (aiSidecar) {
+    try {
+      const parsed = JSON.parse(await readFileAsText(aiSidecar)) as import('$lib/types').VolumeAI;
+      if (
+        parsed.schema_version !== 1 ||
+        parsed.volume_uuid !== metadata.volumeUuid ||
+        !Array.isArray(parsed.pages)
+      ) {
+        throw new Error('AI sidecar does not match this volume');
+      }
+      aiData = parsed;
+    } catch (error) {
+      console.warn('Ignoring invalid AI sidecar:', error);
+    }
+  }
+
   return {
     metadata,
     ocrData: {
@@ -699,6 +724,7 @@ export async function processVolume(input: DecompressedVolume): Promise<Processe
       volume_uuid: metadata.volumeUuid,
       files
     },
+    aiData,
     nestedSources
   };
 }

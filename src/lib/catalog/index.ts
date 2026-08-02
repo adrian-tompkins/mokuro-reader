@@ -9,9 +9,38 @@ import { routeParams } from '$lib/util/hash-router';
 import { getLegacyImageOnlyVolumeUuid } from '$lib/util/download-volume-repair';
 
 async function loadCurrentVolumeData(volume: VolumeMetadata): Promise<VolumeData | undefined> {
-  let [ocr, files] = await Promise.all([
+  const provider = unifiedCloudManager.getActiveProvider();
+  if (provider) {
+    const cloudPath = volume.cloudPath || `${volume.series_title}/${volume.volume_title}.cbz`;
+    const aiPath = cloudPath.replace(/\.(cbz|zip|cbr|rar|7z)$/i, '.mokuro-ai.json').toLowerCase();
+    const remoteAi = unifiedCloudManager
+      .getAllCloudVolumes()
+      .find((file) => file.path.toLowerCase() === aiPath);
+    if (remoteAi) {
+      const existingAi = await db.volume_ai.get(volume.volume_uuid);
+      const remoteModified = Date.parse(remoteAi.modifiedTime || '') || 0;
+      if (!existingAi || existingAi.updated_at * 1000 < remoteModified) {
+        try {
+          const parsed = JSON.parse(
+            await (await provider.downloadFile(remoteAi)).text()
+          ) as import('$lib/types').VolumeAI;
+          if (
+            parsed.schema_version === 1 &&
+            parsed.volume_uuid === volume.volume_uuid &&
+            Array.isArray(parsed.pages)
+          ) {
+            await db.volume_ai.put(parsed);
+          }
+        } catch (error) {
+          console.warn('Failed to refresh AI sidecar:', error);
+        }
+      }
+    }
+  }
+  let [ocr, files, ai] = await Promise.all([
     db.volume_ocr.get(volume.volume_uuid),
-    db.volume_files.get(volume.volume_uuid)
+    db.volume_files.get(volume.volume_uuid),
+    db.volume_ai.get(volume.volume_uuid)
   ]);
 
   if (!ocr || !files) {
@@ -50,7 +79,8 @@ async function loadCurrentVolumeData(volume: VolumeMetadata): Promise<VolumeData
   return {
     volume_uuid: volume.volume_uuid,
     pages: ocr.pages,
-    files: files?.files
+    files: files?.files,
+    ai
   };
 }
 
@@ -126,7 +156,7 @@ export const currentVolume = derived([routeParams, volumes], ([$routeParams, $vo
 });
 
 export const currentVolumeData: Readable<VolumeData | undefined> = derived(
-  [currentVolume],
+  [currentVolume, unifiedCloudManager.cloudFiles],
   ([$currentVolume], set: (value: VolumeData | undefined) => void) => {
     // Track the last volume UUID to avoid unnecessary clears
     // This prevents flash when unrelated volumes are added to the database

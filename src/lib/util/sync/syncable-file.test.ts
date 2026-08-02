@@ -6,6 +6,7 @@ describe('syncable-file', () => {
     expect(isSyncableFile('Series/Vol 1.cbz')).toBe(true);
     expect(isSyncableFile('Series/Vol 1.mokuro')).toBe(true);
     expect(isSyncableFile('Series/Vol 1.mokuro.gz')).toBe(true);
+    expect(isSyncableFile('Series/Vol 1.mokuro-ai.json')).toBe(true);
   });
 
   it('accepts webp AND jpg/jpeg sidecar thumbnails (parity with mature providers)', () => {

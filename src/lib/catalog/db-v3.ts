@@ -1,4 +1,4 @@
-import type { VolumeMetadata, VolumeOCR, VolumeFiles } from '$lib/types';
+import type { VolumeMetadata, VolumeOCR, VolumeFiles, VolumeAI } from '$lib/types';
 import Dexie, { type Table } from 'dexie';
 import { generateThumbnail } from '$lib/catalog/thumbnails';
 import { browser } from '$app/environment';
@@ -9,6 +9,7 @@ export class CatalogDexieV3 extends Dexie {
   volumes!: Table<VolumeMetadata>;
   volume_ocr!: Table<VolumeOCR>;
   volume_files!: Table<VolumeFiles>;
+  volume_ai!: Table<VolumeAI>;
 
   constructor(dbName: string = 'mokuro_v3') {
     super(dbName);
@@ -18,6 +19,12 @@ export class CatalogDexieV3 extends Dexie {
       volumes: 'volume_uuid, series_uuid, series_title',
       volume_ocr: 'volume_uuid',
       volume_files: 'volume_uuid'
+    });
+    this.version(2).stores({
+      volumes: 'volume_uuid, series_uuid, series_title',
+      volume_ocr: 'volume_uuid',
+      volume_files: 'volume_uuid',
+      volume_ai: 'volume_uuid'
     });
   }
 

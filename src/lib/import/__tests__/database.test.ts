@@ -30,6 +30,12 @@ vi.mock('$lib/catalog/db', () => ({
       get: vi.fn(),
       delete: vi.fn()
     },
+    volume_ai: {
+      add: vi.fn(),
+      put: vi.fn(),
+      get: vi.fn(),
+      delete: vi.fn()
+    },
     transaction: vi.fn(),
     processThumbnails: vi.fn().mockResolvedValue(undefined)
   }
@@ -91,6 +97,7 @@ describe('saveVolume', () => {
     (db.volumes.get as any).mockResolvedValue(undefined);
     (db.volume_ocr.get as any).mockResolvedValue(undefined);
     (db.volume_files.get as any).mockResolvedValue(undefined);
+    (db.volume_ai.get as any).mockResolvedValue(undefined);
   });
 
   it('writes to all three tables', async () => {

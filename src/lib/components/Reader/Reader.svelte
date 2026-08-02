@@ -1146,6 +1146,7 @@
         {pages}
         files={volumeData.files}
         {volume}
+        ai={volumeData.ai}
         {volumeSettings}
         currentPage={page}
         onPageChange={handleContinuousPageChange}
@@ -1159,6 +1160,7 @@
         {pages}
         files={volumeData.files}
         {volume}
+        ai={volumeData.ai}
         {volumeSettings}
         currentPage={page}
         onPageChange={handleContinuousPageChange}
@@ -1223,6 +1225,7 @@
                     cachedUrl={cachedImageUrl2}
                     volumeUuid={volume.volume_uuid}
                     pageIndex={index + 1}
+                    aiPage={volumeData.ai?.pages.find((item) => item.page_index === index + 1)}
                     forceVisible={missingPagePaths.has(pages[index + 1]?.img_path)}
                     onContextMenu={handleTextBoxContextMenu}
                   />
@@ -1233,6 +1236,7 @@
                   cachedUrl={cachedImageUrl1}
                   volumeUuid={volume.volume_uuid}
                   pageIndex={index}
+                  aiPage={volumeData.ai?.pages.find((item) => item.page_index === index)}
                   forceVisible={missingPagePaths.has(pages[index]?.img_path)}
                   onContextMenu={handleTextBoxContextMenu}
                 />

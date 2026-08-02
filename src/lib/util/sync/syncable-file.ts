@@ -26,7 +26,12 @@ export function isCbzFile(basename: string): boolean {
 
 export function isSidecarFile(basename: string): boolean {
   const lower = basename.toLowerCase();
-  return lower.endsWith('.mokuro') || lower.endsWith('.mokuro.gz') || SIDECAR_IMAGE_RE.test(lower);
+  return (
+    lower.endsWith('.mokuro-ai.json') ||
+    lower.endsWith('.mokuro') ||
+    lower.endsWith('.mokuro.gz') ||
+    SIDECAR_IMAGE_RE.test(lower)
+  );
 }
 
 export function isRootConfigFile(basename: string): boolean {

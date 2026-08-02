@@ -131,6 +131,8 @@ export interface DecompressedVolume {
   mokuroFile: File | null;
   /** Optional thumbnail sidecar (e.g., Volume.webp) */
   thumbnailSidecar?: File | null;
+  /** Optional GPT enrichment sidecar paired with the mokuro file. */
+  aiSidecar?: File | null;
   /** Map of relative path → File for all images */
   imageFiles: Map<string, File>;
   /** Base path for series/volume name extraction */
@@ -157,6 +159,8 @@ export interface ProcessedVolume {
     volume_uuid: string;
     files: Record<string, File>;
   };
+  /** Parsed AI enrichment, if a companion sidecar was available. */
+  aiData?: import('$lib/types').VolumeAI;
   /** Nested sources discovered during processing (to be queued) */
   nestedSources: PairedSource[];
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Page, VolumeMetadata } from '$lib/types';
+  import type { Page, VolumeAI, VolumeMetadata } from '$lib/types';
   import type { VolumeSettings } from '$lib/settings/volume-data';
   import { settings, imageFilter, updateSetting } from '$lib/settings';
   import { matchFilesToPages } from '$lib/reader/image-cache';
@@ -30,6 +30,7 @@
     pages: Page[];
     files: Record<string, File>;
     volume: VolumeMetadata;
+    ai?: VolumeAI;
     volumeSettings: VolumeSettings;
     currentPage: number;
     onPageChange: (newPage: number, charCount: number, isComplete: boolean) => void;
@@ -45,6 +46,7 @@
     pages,
     files,
     volume,
+    ai,
     volumeSettings,
     currentPage,
     onPageChange,
@@ -568,6 +570,7 @@
                 src={indexedFiles[i]}
                 volumeUuid={volume.volume_uuid}
                 pageIndex={i}
+                aiPage={ai?.pages.find((item) => item.page_index === i)}
                 forceVisible={missingPagePaths.has(page.img_path)}
                 {onContextMenu}
               />

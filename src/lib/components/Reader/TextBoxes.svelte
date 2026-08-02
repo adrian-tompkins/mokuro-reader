@@ -1,6 +1,6 @@
 <script lang="ts">
   import { clamp, promptConfirmation } from '$lib/util';
-  import type { Page } from '$lib/types';
+  import type { AIBlock, AIPage, Page } from '$lib/types';
   import { settings, volumes } from '$lib/settings';
   import {
     showCropper,
@@ -34,13 +34,22 @@
     volumeUuid: string;
     /** 0-based page index within the volume */
     pageIndex?: number;
+    aiPage?: AIPage;
     /** Force text visibility (for placeholder/missing pages) */
     forceVisible?: boolean;
     /** Callback when context menu should be shown */
     onContextMenu?: (data: ContextMenuData) => void;
   }
 
-  let { page, src, volumeUuid, pageIndex, forceVisible = false, onContextMenu }: Props = $props();
+  let {
+    page,
+    src,
+    volumeUuid,
+    pageIndex,
+    aiPage,
+    forceVisible = false,
+    onContextMenu
+  }: Props = $props();
 
   interface TextBoxData {
     left: string;
@@ -57,6 +66,7 @@
      * null falls back to legacy hover-fit auto rendering */
     lineLayouts: LineLayout[] | null;
     blockIndex: number; // Original index in page.blocks
+    ai?: AIBlock;
   }
 
   let textBoxes = $derived(
@@ -131,7 +141,8 @@
           useMinDimensions: $settings.fontSize !== 'auto' && !isOriginalMode,
           isOriginalMode,
           lineLayouts,
-          blockIndex
+          blockIndex,
+          ai: aiPage?.blocks.find((item) => item.block_index === blockIndex)
         };
 
         return textBox;
@@ -607,9 +618,23 @@
     event.clipboardData?.setData('text/plain', stripped);
     event.preventDefault();
   }
+
+  let openAiBlock = $state<number | null>(null);
+  let openAiWord = $state<number | null>(null);
+
+  function toggleAi(event: MouseEvent, blockIndex: number) {
+    event.stopPropagation();
+    openAiBlock = openAiBlock === blockIndex ? null : blockIndex;
+    openAiWord = null;
+  }
+
+  async function copyAi(event: MouseEvent, value: string) {
+    event.stopPropagation();
+    await navigator.clipboard.writeText(value);
+  }
 </script>
 
-{#each textBoxes as { fontSize, height, left, lines, top, width, writingMode, useMinDimensions, isOriginalMode, lineLayouts, blockIndex }, index (`${volumeUuid}-textBox-${index}`)}
+{#each textBoxes as { fontSize, height, left, lines, top, width, writingMode, useMinDimensions, isOriginalMode, lineLayouts, blockIndex, ai }, index (`${volumeUuid}-textBox-${index}`)}
   {@const usePerLine = lineLayouts !== null}
   <div
     use:handleTextBoxHover={[index, fontSize]}
@@ -655,6 +680,56 @@
         {#each lines as line}<span class="ocr-line">{line}</span>{/each}
       {/if}
     </p>
+    {#if ai}
+      <div class="aiActions">
+        <button
+          type="button"
+          title="Translation and word details"
+          onclick={(event) => toggleAi(event, blockIndex)}>AI</button
+        >
+        <button
+          type="button"
+          title="Copy translation"
+          onclick={(event) => copyAi(event, ai.translation)}>Copy EN</button
+        >
+      </div>
+      {#if openAiBlock === blockIndex}
+        <div class="aiPanel">
+          <div class="aiHeading">Translation</div>
+          <div>{ai.translation}</div>
+          {#if ai.corrected_lines.join('') !== ai.source_lines.join('')}
+            <div class="aiHeading">OCR correction</div>
+            <div lang="ja">{ai.corrected_lines.join('')}</div>
+          {/if}
+          {#if ai.words.length}
+            <div class="aiHeading">Words</div>
+            <div class="aiWords">
+              {#each ai.words as word, wordIndex}
+                <button
+                  type="button"
+                  lang="ja"
+                  onclick={(event) => {
+                    event.stopPropagation();
+                    openAiWord = openAiWord === wordIndex ? null : wordIndex;
+                  }}>{word.surface}</button
+                >
+                {#if openAiWord === wordIndex}
+                  <div class="aiWordDetail">
+                    <strong>{word.surface}</strong>{word.reading && word.reading !== word.surface
+                      ? ` (${word.reading})`
+                      : ''}<br />
+                    {#if word.dictionary_form && word.dictionary_form !== word.surface}{word.dictionary_form}{word.dictionary_reading
+                        ? ` (${word.dictionary_reading})`
+                        : ''}<br />{/if}
+                    {word.meaning}{word.grammar ? ` · ${word.grammar}` : ''}
+                  </div>
+                {/if}
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
+    {/if}
   </div>
 {/each}
 
@@ -758,5 +833,76 @@
   .textBox:not(.perLine) .ocr-line:not(:last-child)::after {
     content: '\A';
     white-space: pre;
+  }
+
+  .aiActions {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: 100%;
+    gap: 4px;
+    writing-mode: horizontal-tb;
+    z-index: 20;
+  }
+  .textBox:hover .aiActions,
+  .textBox:focus-within .aiActions,
+  .textBox.alwaysVisible .aiActions {
+    display: flex;
+  }
+  .aiActions button,
+  .aiWords button {
+    border: 1px solid #64748b;
+    border-radius: 4px;
+    background: #0f172a;
+    color: white;
+    padding: 3px 6px;
+    font:
+      12px/1.2 system-ui,
+      sans-serif;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .aiPanel {
+    position: absolute;
+    left: 0;
+    top: calc(100% + 30px);
+    width: min(28rem, 80vw);
+    max-height: 60vh;
+    overflow: auto;
+    padding: 12px;
+    border: 1px solid #64748b;
+    border-radius: 8px;
+    background: #fff;
+    color: #111827;
+    box-shadow: 0 8px 24px #0004;
+    font:
+      14px/1.45 system-ui,
+      sans-serif;
+    white-space: normal;
+    writing-mode: horizontal-tb;
+    z-index: 30;
+  }
+  .aiHeading {
+    margin-top: 10px;
+    margin-bottom: 3px;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .aiHeading:first-child {
+    margin-top: 0;
+  }
+  .aiWords {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: flex-start;
+  }
+  .aiWordDetail {
+    flex-basis: 100%;
+    padding: 7px;
+    border-radius: 4px;
+    background: #f1f5f9;
   }
 </style>

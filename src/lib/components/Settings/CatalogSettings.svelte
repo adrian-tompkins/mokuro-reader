@@ -91,6 +91,7 @@
     db.volumes.clear();
     db.volume_ocr.clear();
     db.volume_files.clear();
+    db.volume_ai.clear();
   }
 
   function onClear() {

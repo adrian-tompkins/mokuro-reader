@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Page } from '$lib/types';
+  import type { AIPage, Page } from '$lib/types';
   import TextBoxes from './TextBoxes.svelte';
 
   interface ContextMenuData {
@@ -17,6 +17,7 @@
     volumeUuid: string;
     /** 0-based page index within the volume */
     pageIndex?: number;
+    aiPage?: AIPage;
     /** Force text visibility (for placeholder/missing pages) */
     forceVisible?: boolean;
     /** Callback when context menu should be shown */
@@ -29,6 +30,7 @@
     cachedUrl,
     volumeUuid,
     pageIndex,
+    aiPage,
     forceVisible = false,
     onContextMenu
   }: Props = $props();
@@ -76,6 +78,7 @@
     src={src ?? undefined}
     {volumeUuid}
     {pageIndex}
+    {aiPage}
     {forceVisible}
     {onContextMenu}
   />
