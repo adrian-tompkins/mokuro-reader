@@ -81,7 +81,7 @@ function makePage(blocks: unknown[]): Page {
 
 describe('TextBoxes auto mode with lines_coords', () => {
   it('opens translation and contextual word details from an AI sidecar page', async () => {
-    const { container, getByText } = render(TextBoxes, {
+    const { container, getByText, queryByText } = render(TextBoxes, {
       page: makePage([blockWithCoords]),
       volumeUuid: 'test-uuid',
       aiPage: {
@@ -111,8 +111,11 @@ describe('TextBoxes auto mode with lines_coords', () => {
 
     await fireEvent.click(getByText('AI'));
     expect(getByText('It makes entering and leaving the barrier possible.')).toBeTruthy();
+    expect(queryByText('Copy EN')).toBeNull();
     await fireEvent.click(getByText('可能'));
     expect(container.querySelector('.aiWordDetail')?.textContent).toContain('possible');
+    await fireEvent.pointerDown(document.body);
+    expect(queryByText('It makes entering and leaving the barrier possible.')).toBeNull();
   });
 
   it('renders each line as a positioned span sized from its quad', () => {

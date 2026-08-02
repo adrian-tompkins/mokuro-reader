@@ -628,11 +628,13 @@
     openAiWord = null;
   }
 
-  async function copyAi(event: MouseEvent, value: string) {
-    event.stopPropagation();
-    await navigator.clipboard.writeText(value);
+  function closeAi() {
+    openAiBlock = null;
+    openAiWord = null;
   }
 </script>
+
+<svelte:window onpointerdown={closeAi} />
 
 {#each textBoxes as { fontSize, height, left, lines, top, width, writingMode, useMinDimensions, isOriginalMode, lineLayouts, blockIndex, ai }, index (`${volumeUuid}-textBox-${index}`)}
   {@const usePerLine = lineLayouts !== null}
@@ -681,20 +683,16 @@
       {/if}
     </p>
     {#if ai}
-      <div class="aiActions">
+      <div class="aiActions" onpointerdown={(event) => event.stopPropagation()}>
         <button
           type="button"
           title="Translation and word details"
+          aria-expanded={openAiBlock === blockIndex}
           onclick={(event) => toggleAi(event, blockIndex)}>AI</button
-        >
-        <button
-          type="button"
-          title="Copy translation"
-          onclick={(event) => copyAi(event, ai.translation)}>Copy EN</button
         >
       </div>
       {#if openAiBlock === blockIndex}
-        <div class="aiPanel">
+        <div class="aiPanel" onpointerdown={(event) => event.stopPropagation()}>
           <div class="aiHeading">Translation</div>
           <div>{ai.translation}</div>
           {#if ai.corrected_lines.join('') !== ai.source_lines.join('')}
@@ -904,5 +902,35 @@
     padding: 7px;
     border-radius: 4px;
     background: #f1f5f9;
+  }
+
+  @media (hover: none), (pointer: coarse) {
+    .textBox .aiActions {
+      display: flex;
+    }
+
+    .aiActions button {
+      min-width: 36px;
+      min-height: 36px;
+      padding: 8px 10px;
+      font-size: 14px;
+      touch-action: manipulation;
+    }
+
+    .aiPanel {
+      position: fixed;
+      inset: auto 12px 12px;
+      width: auto;
+      max-height: min(60vh, 32rem);
+      padding: 16px;
+      border-radius: 12px;
+      z-index: 100;
+    }
+
+    .aiWords button {
+      min-height: 36px;
+      padding: 8px 10px;
+      touch-action: manipulation;
+    }
   }
 </style>
