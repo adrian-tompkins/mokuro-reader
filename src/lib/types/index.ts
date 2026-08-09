@@ -20,11 +20,17 @@ export interface AIWord {
   grammar: string;
 }
 
+export interface AIRubySegment {
+  base: string;
+  reading: string;
+}
+
 export interface AIBlock {
   block_index: number;
   block_key: string;
   source_lines: string[];
   corrected_lines: string[];
+  ruby_lines?: AIRubySegment[][];
   translation: string;
   words: AIWord[];
 }

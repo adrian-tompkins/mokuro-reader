@@ -155,6 +155,52 @@ describe('TextBoxes auto mode with lines_coords', () => {
     }
   });
 
+  it('renders validated AI ruby segments over corrected OCR text', () => {
+    const { container } = render(TextBoxes, {
+      page: makePage([blockWithCoords]),
+      volumeUuid: 'test-uuid',
+      aiPage: {
+        page_index: 0,
+        img_path: 'page_001.jpg',
+        blocks: [
+          {
+            block_index: 0,
+            block_key: 'key',
+            source_lines: blockWithCoords.lines,
+            corrected_lines: blockWithCoords.lines,
+            ruby_lines: [
+              [
+                { base: '総則', reading: 'そうそく' },
+                { base: '追加で言うのは', reading: '' }
+              ],
+              [
+                { base: '結界', reading: 'けっかい' },
+                { base: 'の出入りを', reading: '' }
+              ],
+              [
+                { base: '可能', reading: 'かのう' },
+                { base: 'にしても', reading: '' }
+              ]
+            ],
+            translation: 'Ruby translation.',
+            words: []
+          }
+        ]
+      }
+    });
+
+    expect(Array.from(container.querySelectorAll('ruby')).map((ruby) => ruby.textContent)).toEqual([
+      '総則そうそく',
+      '結界けっかい',
+      '可能かのう'
+    ]);
+    expect(Array.from(container.querySelectorAll('rt')).map((rt) => rt.textContent)).toEqual([
+      'そうそく',
+      'けっかい',
+      'かのう'
+    ]);
+  });
+
   it('opens translation and contextual word details from an AI sidecar page', async () => {
     const { container, getByText, queryByText } = render(TextBoxes, {
       page: makePage([blockWithCoords]),

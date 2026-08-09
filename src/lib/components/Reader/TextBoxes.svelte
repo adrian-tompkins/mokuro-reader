@@ -1,6 +1,6 @@
 <script lang="ts">
   import { clamp, promptConfirmation } from '$lib/util';
-  import type { AIBlock, AIPage, Page } from '$lib/types';
+  import type { AIBlock, AIPage, AIRubySegment, Page } from '$lib/types';
   import { settings, volumes } from '$lib/settings';
   import {
     showCropper,
@@ -59,6 +59,7 @@
     fontSize: string;
     writingMode: string;
     lines: string[];
+    rubyLines: AIRubySegment[][] | null;
     area: number;
     useMinDimensions: boolean;
     isOriginalMode: boolean;
@@ -74,14 +75,25 @@
       .map(({ block, blockIndex }) => {
         const { img_height, img_width } = page;
         const { box, font_size, lines, vertical } = block;
+        const ai = aiPage?.blocks.find((item) => item.block_index === blockIndex);
 
         let [_xmin, _ymin, _xmax, _ymax] = box;
 
         // Replace manual ellipsis with proper ellipsis character (…)
         // Handle both ASCII periods (...) and full-width periods (．．．)
-        const processedLines = lines.map((line) =>
+        const correctedLines =
+          ai?.corrected_lines.length === lines.length ? ai.corrected_lines : lines;
+        const processedLines = correctedLines.map((line) =>
           line.replace(/\.\.\./g, '…').replace(/．．．/g, '…')
         );
+        const rubyLines =
+          ai?.ruby_lines?.length === processedLines.length &&
+          ai.ruby_lines.every(
+            (rubyLine, lineIndex) =>
+              rubyLine.map((segment) => segment.base).join('') === correctedLines[lineIndex]
+          )
+            ? ai.ruby_lines
+            : null;
 
         const isOriginalMode = $settings.fontSize === 'original';
         const isAutoMode = $settings.fontSize === 'auto';
@@ -137,12 +149,13 @@
           fontSize,
           writingMode: vertical ? 'vertical-rl' : 'horizontal-tb',
           lines: processedLines,
+          rubyLines,
           area,
           useMinDimensions: $settings.fontSize !== 'auto' && !isOriginalMode,
           isOriginalMode,
           lineLayouts,
           blockIndex,
-          ai: aiPage?.blocks.find((item) => item.block_index === blockIndex)
+          ai
         };
 
         return textBox;
@@ -684,7 +697,7 @@
 
 <svelte:window onpointerdown={closeAi} />
 
-{#each textBoxes as { fontSize, height, left, lines, top, width, writingMode, useMinDimensions, isOriginalMode, lineLayouts, blockIndex, ai }, index (`${volumeUuid}-textBox-${index}`)}
+{#each textBoxes as { fontSize, height, left, lines, rubyLines, top, width, writingMode, useMinDimensions, isOriginalMode, lineLayouts, blockIndex, ai }, index (`${volumeUuid}-textBox-${index}`)}
   {@const usePerLine = lineLayouts !== null}
   <div
     use:handleTextBoxHover={[index, fontSize]}
@@ -729,10 +742,17 @@
               style:height={lineLayouts[lineIndex].wrap
                 ? `${lineLayouts[lineIndex].height}px`
                 : undefined}
-              style:font-size={`${lineLayouts[lineIndex].fontSize}px`}>{line}</span
+              style:font-size={`${lineLayouts[lineIndex].fontSize}px`}
+              >{#if rubyLines?.[lineIndex]}{#each rubyLines[lineIndex] as segment}{#if segment.reading}<ruby
+                      >{segment.base}<rt>{segment.reading}</rt></ruby
+                    >{:else}{segment.base}{/if}{/each}{:else}{line}{/if}</span
             >{/if}{/each}
       {:else}
-        {#each lines as line}<span class="ocr-line">{line}</span>{/each}
+        {#each lines as line, lineIndex}<span class="ocr-line"
+            >{#if rubyLines?.[lineIndex]}{#each rubyLines[lineIndex] as segment}{#if segment.reading}<ruby
+                    >{segment.base}<rt>{segment.reading}</rt></ruby
+                  >{:else}{segment.base}{/if}{/each}{:else}{line}{/if}</span
+          >{/each}
       {/if}
     </p>
     {#if ai}
@@ -875,6 +895,17 @@
     letter-spacing: 0;
     white-space: nowrap;
     /* transform (translate onto the quad) is set by positionPerLine */
+  }
+
+  .textBox ruby {
+    ruby-position: over;
+    ruby-align: center;
+  }
+
+  .textBox rt {
+    font-size: 0.45em;
+    font-weight: 400;
+    letter-spacing: 0;
   }
 
   /* A quad that captured multiple print columns (base text + furigana):
