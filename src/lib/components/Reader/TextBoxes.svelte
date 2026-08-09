@@ -620,6 +620,7 @@
   }
 
   let openAiBlock = $state<number | null>(null);
+  let openOcrBlock = $state<number | null>(null);
   let openAiWord = $state<number | null>(null);
   let mobileAiPanel = $state(false);
 
@@ -640,12 +641,25 @@
     event.stopPropagation();
     if (window.getSelection()?.toString()) return;
     mobileAiPanel = window.matchMedia?.('(hover: none), (pointer: coarse)').matches ?? false;
+
+    // Touch has no persistent hover state. Use the first tap to reveal the OCR
+    // and only open the AI panel when the same block is tapped again.
+    if (mobileAiPanel && openOcrBlock !== blockIndex) {
+      openOcrBlock = blockIndex;
+      openAiBlock = null;
+      openAiWord = null;
+      return;
+    }
+
     openAiBlock = blockIndex;
     openAiWord = null;
   }
 
-  function closeAi() {
+  function closeAi(event: PointerEvent) {
+    const target = event.target as Element | null;
+    if (target?.closest('.textBox, .aiPanel')) return;
     openAiBlock = null;
+    openOcrBlock = null;
     openAiWord = null;
   }
 </script>
@@ -662,6 +676,7 @@
     class:perLine={usePerLine}
     class:forceVisible
     class:alwaysVisible={alwaysShowOCR}
+    class:tapVisible={openOcrBlock === blockIndex}
     class:hasAi={Boolean(ai)}
     style:width={usePerLine ? width : isOriginalMode || useMinDimensions ? undefined : width}
     style:height={usePerLine ? height : isOriginalMode || useMinDimensions ? undefined : height}
@@ -800,12 +815,14 @@
 
   /* Force visibility for placeholder/missing pages, or when always-show OCR is enabled */
   .textBox.forceVisible,
-  .textBox.alwaysVisible {
+  .textBox.alwaysVisible,
+  .textBox.tapVisible {
     background: rgb(255, 255, 255);
   }
 
   .textBox.forceVisible p,
-  .textBox.alwaysVisible p {
+  .textBox.alwaysVisible p,
+  .textBox.tapVisible p {
     visibility: visible;
   }
 
@@ -871,7 +888,7 @@
     position: absolute;
     left: 0;
     top: calc(100% + 30px);
-    width: min(28rem, 80vw);
+    width: min(40rem, 80vw);
     max-height: 60vh;
     overflow: auto;
     padding: 12px;

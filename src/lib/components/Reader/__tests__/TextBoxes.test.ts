@@ -104,12 +104,47 @@ describe('TextBoxes auto mode with lines_coords', () => {
         }
       });
 
-      await fireEvent.click(container.querySelector('.textBox.hasAi')!);
+      const textBox = container.querySelector('.textBox.hasAi')!;
+      await fireEvent.click(textBox);
+      expect(textBox.classList.contains('tapVisible')).toBe(true);
+      expect(document.body.querySelector('.aiPanel.mobileViewportPanel')).toBeNull();
+      await fireEvent.click(textBox);
       const panel = document.body.querySelector('.aiPanel.mobileViewportPanel');
       expect(panel).toBeTruthy();
       expect(container.contains(panel)).toBe(false);
       unmount();
       expect(document.body.querySelector('.aiPanel.mobileViewportPanel')).toBeNull();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it('keeps one-click AI opening on desktop pointers', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false });
+
+    try {
+      const { container, getByText } = render(TextBoxes, {
+        page: makePage([blockWithCoords]),
+        volumeUuid: 'test-uuid',
+        aiPage: {
+          page_index: 0,
+          img_path: 'page_001.jpg',
+          blocks: [
+            {
+              block_index: 0,
+              block_key: 'key',
+              source_lines: blockWithCoords.lines,
+              corrected_lines: blockWithCoords.lines,
+              translation: 'Desktop translation.',
+              words: []
+            }
+          ]
+        }
+      });
+
+      await fireEvent.click(container.querySelector('.textBox.hasAi')!);
+      expect(getByText('Desktop translation.')).toBeTruthy();
     } finally {
       window.matchMedia = originalMatchMedia;
     }
