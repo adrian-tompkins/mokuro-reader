@@ -623,6 +623,9 @@
   let openOcrBlock = $state<number | null>(null);
   let openAiWord = $state<number | null>(null);
   let mobileAiPanel = $state(false);
+  let desktopPanelLeft = $state(12);
+  let desktopPanelTop = $state<number | null>(null);
+  let desktopPanelBottom = $state<number | null>(null);
 
   function portalToBody(node: HTMLElement, enabled: boolean) {
     if (enabled) document.body.appendChild(node);
@@ -649,6 +652,21 @@
       openAiBlock = null;
       openAiWord = null;
       return;
+    }
+
+    if (!mobileAiPanel) {
+      const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      const panelWidth = Math.min(640, window.innerWidth - 24);
+      desktopPanelLeft = Math.max(12, Math.min(box.left, window.innerWidth - panelWidth - 12));
+
+      const spaceBelow = window.innerHeight - box.bottom;
+      if (spaceBelow >= 260 || spaceBelow >= box.top) {
+        desktopPanelTop = box.bottom + 12;
+        desktopPanelBottom = null;
+      } else {
+        desktopPanelTop = null;
+        desktopPanelBottom = window.innerHeight - box.top + 12;
+      }
     }
 
     openAiBlock = blockIndex;
@@ -720,9 +738,17 @@
     {#if ai}
       {#if openAiBlock === blockIndex}
         <div
-          use:portalToBody={mobileAiPanel}
+          use:portalToBody={true}
           class="aiPanel"
+          class:desktopViewportPanel={!mobileAiPanel}
           class:mobileViewportPanel={mobileAiPanel}
+          style:left={!mobileAiPanel ? `${desktopPanelLeft}px` : undefined}
+          style:top={!mobileAiPanel && desktopPanelTop !== null
+            ? `${desktopPanelTop}px`
+            : undefined}
+          style:bottom={!mobileAiPanel && desktopPanelBottom !== null
+            ? `${desktopPanelBottom}px`
+            : undefined}
           onpointerdown={(event) => event.stopPropagation()}
         >
           <div class="aiHeading">Translation</div>
@@ -885,9 +911,6 @@
     white-space: nowrap;
   }
   .aiPanel {
-    position: absolute;
-    left: 0;
-    top: calc(100% + 30px);
     width: min(40rem, 80vw);
     max-height: 60vh;
     overflow: auto;
@@ -903,6 +926,11 @@
     white-space: normal;
     writing-mode: horizontal-tb;
     z-index: 30;
+  }
+  .aiPanel.desktopViewportPanel {
+    position: fixed;
+    width: min(40rem, calc(100vw - 24px));
+    z-index: 10000;
   }
   .aiHeading {
     margin-top: 10px;

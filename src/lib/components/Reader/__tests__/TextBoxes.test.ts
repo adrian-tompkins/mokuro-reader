@@ -119,12 +119,12 @@ describe('TextBoxes auto mode with lines_coords', () => {
     }
   });
 
-  it('keeps one-click AI opening on desktop pointers', async () => {
+  it('portals an unscaled panel to the viewport on the first desktop click', async () => {
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = vi.fn().mockReturnValue({ matches: false });
 
     try {
-      const { container, getByText } = render(TextBoxes, {
+      const { container, getByText, unmount } = render(TextBoxes, {
         page: makePage([blockWithCoords]),
         volumeUuid: 'test-uuid',
         aiPage: {
@@ -145,6 +145,11 @@ describe('TextBoxes auto mode with lines_coords', () => {
 
       await fireEvent.click(container.querySelector('.textBox.hasAi')!);
       expect(getByText('Desktop translation.')).toBeTruthy();
+      const panel = document.body.querySelector('.aiPanel.desktopViewportPanel');
+      expect(panel).toBeTruthy();
+      expect(container.contains(panel)).toBe(false);
+      unmount();
+      expect(document.body.querySelector('.aiPanel.desktopViewportPanel')).toBeNull();
     } finally {
       window.matchMedia = originalMatchMedia;
     }
@@ -195,8 +200,8 @@ describe('TextBoxes auto mode with lines_coords', () => {
     expect(getByText('It makes entering and leaving the barrier possible.')).toBeTruthy();
     expect(queryByText('Copy EN')).toBeNull();
     await fireEvent.click(getByText('可能'));
-    expect(container.querySelector('.aiWordDetail')?.textContent).toContain('possible');
-    const aiWords = container.querySelector('.aiWords');
+    expect(document.body.querySelector('.aiWordDetail')?.textContent).toContain('possible');
+    const aiWords = document.body.querySelector('.aiWords');
     expect(aiWords?.lastElementChild?.classList.contains('aiWordDetail')).toBe(true);
     expect(
       Array.from(aiWords?.querySelectorAll('button') || []).map((button) => button.textContent)
