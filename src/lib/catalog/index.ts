@@ -219,6 +219,7 @@ export const currentVolumeData: Readable<VolumeData | undefined> = derived(
     // Don't clear if the store just emitted a new object reference for the same volume
     if (newUuid !== currentVolumeDataLastUuid) {
       currentVolumeDataLastUuid = newUuid;
+      currentVolumeDataLastVersion = undefined;
       // Clear old data synchronously to prevent state leaks between volumes
       set(undefined);
     }
@@ -228,7 +229,11 @@ export const currentVolumeData: Readable<VolumeData | undefined> = derived(
         try {
           const volumeData = await loadCurrentVolumeData($currentVolume, pollAi);
           if (!cancelled && volumeData) {
-            set(volumeData);
+            const version = `${volumeData.volume_uuid}:${volumeData.ai?.updated_at || 0}:${volumeData.ai?.pages.length || 0}`;
+            if (version !== currentVolumeDataLastVersion) {
+              currentVolumeDataLastVersion = version;
+              set(volumeData);
+            }
           }
         } catch (error) {
           console.error('Failed to load current volume data:', error);
@@ -248,6 +253,7 @@ export const currentVolumeData: Readable<VolumeData | undefined> = derived(
 
 // Track last volume UUID to prevent unnecessary data clears
 let currentVolumeDataLastUuid: string | undefined;
+let currentVolumeDataLastVersion: string | undefined;
 
 /**
  * Japanese character count for current volume.
