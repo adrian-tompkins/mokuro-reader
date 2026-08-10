@@ -12,6 +12,7 @@ import type { CloudFileMetadata } from '$lib/util/sync/provider-interface';
 const AI_REFRESH_INTERVAL_MS = 15_000;
 const AI_DOWNLOAD_ATTEMPTS = 3;
 const discoveredAiFiles = new Map<string, CloudFileMetadata>();
+const downloadedAiVersions = new Map<string, string>();
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -58,21 +59,26 @@ async function loadCurrentVolumeData(
     const cloudPath = volume.cloudPath || `${volume.series_title}/${volume.volume_title}.cbz`;
     const aiPath = cloudPath.replace(/\.(cbz|zip|cbr|rar|7z)$/i, '.mokuro-ai.json').toLowerCase();
     const discoveryKey = `${provider.type}:${aiPath}`;
-    let remoteAi =
-      unifiedCloudManager.getAllCloudVolumes().find((file) => file.path.toLowerCase() === aiPath) ||
-      discoveredAiFiles.get(discoveryKey);
-    if (!remoteAi && pollAi) {
+    let remoteAi: CloudFileMetadata | undefined;
+    if (pollAi) {
       remoteAi = (await provider.listCloudVolumes()).find(
         (file) => file.path.toLowerCase() === aiPath
       );
       if (remoteAi) discoveredAiFiles.set(discoveryKey, remoteAi);
+    } else {
+      remoteAi =
+        unifiedCloudManager
+          .getAllCloudVolumes()
+          .find((file) => file.path.toLowerCase() === aiPath) ||
+        discoveredAiFiles.get(discoveryKey);
     }
     if (remoteAi) {
       const existingAi = await db.volume_ai.get(volume.volume_uuid);
-      const remoteModified = Date.parse(remoteAi.modifiedTime || '') || 0;
-      if (pollAi || !existingAi || existingAi.updated_at * 1000 < remoteModified) {
+      const remoteVersion = `${remoteAi.fileId}:${remoteAi.modifiedTime || ''}:${remoteAi.size || ''}`;
+      if (!existingAi || downloadedAiVersions.get(discoveryKey) !== remoteVersion) {
         try {
           await downloadAiSidecar(provider, remoteAi, volume, existingAi);
+          downloadedAiVersions.set(discoveryKey, remoteVersion);
         } catch (error) {
           console.warn(
             `Failed to refresh AI sidecar after ${AI_DOWNLOAD_ATTEMPTS} attempts:`,
@@ -223,14 +229,6 @@ export const currentVolumeData: Readable<VolumeData | undefined> = derived(
           const volumeData = await loadCurrentVolumeData($currentVolume, pollAi);
           if (!cancelled && volumeData) {
             set(volumeData);
-            if (
-              refreshTimer &&
-              volumeData.ai &&
-              volumeData.ai.pages.length >= volumeData.pages.length
-            ) {
-              clearInterval(refreshTimer);
-              refreshTimer = undefined;
-            }
           }
         } catch (error) {
           console.error('Failed to load current volume data:', error);

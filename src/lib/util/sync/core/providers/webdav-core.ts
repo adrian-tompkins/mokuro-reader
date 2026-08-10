@@ -73,7 +73,7 @@ export const webdavCore: CloudProviderCore = {
     // Best-effort size probe: helps detect truncation even when GET is chunked
     // without Content-Length. If HEAD fails/is unsupported, we'll continue without it.
     try {
-      const headResponse = await fetch(fullUrl, { method: 'HEAD', headers });
+      const headResponse = await fetch(fullUrl, { method: 'HEAD', headers, cache: 'no-store' });
       if (headResponse.ok) {
         const headSize = parseInt(headResponse.headers.get('Content-Length') || '0', 10);
         if (headSize > 0) {
@@ -91,7 +91,7 @@ export const webdavCore: CloudProviderCore = {
       }
 
       try {
-        const response = await fetch(fullUrl, { headers: requestHeaders });
+        const response = await fetch(fullUrl, { headers: requestHeaders, cache: 'no-store' });
 
         if (!response.ok) {
           // 416 can happen when range start == size (already complete)
