@@ -949,9 +949,8 @@
     background: #0f172a;
     color: white;
     padding: 3px 6px;
-    font:
-      12px/1.2 system-ui,
-      sans-serif;
+    font: inherit;
+    line-height: 1.2;
     cursor: pointer;
     white-space: nowrap;
   }
