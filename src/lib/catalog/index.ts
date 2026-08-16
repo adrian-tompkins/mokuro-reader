@@ -23,7 +23,7 @@ async function downloadAiSidecar(
   remoteAi: ReturnType<typeof unifiedCloudManager.getAllCloudVolumes>[number],
   volume: VolumeMetadata,
   existingAi: import('$lib/types').VolumeAI | undefined
-): Promise<void> {
+): Promise<boolean> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= AI_DOWNLOAD_ATTEMPTS; attempt += 1) {
     try {
@@ -40,8 +40,9 @@ async function downloadAiSidecar(
           canonicalAi.pages.length >= existingAi.pages.length)
       ) {
         await db.volume_ai.put(canonicalAi);
+        return true;
       }
-      return;
+      return false;
     } catch (error) {
       lastError = error;
       if (attempt < AI_DOWNLOAD_ATTEMPTS) await delay(500 * attempt);
@@ -50,44 +51,42 @@ async function downloadAiSidecar(
   throw lastError;
 }
 
-async function loadCurrentVolumeData(
-  volume: VolumeMetadata,
-  pollAi = false
-): Promise<VolumeData | undefined> {
+async function refreshAiSidecar(volume: VolumeMetadata, refreshListing = false): Promise<boolean> {
   const provider = unifiedCloudManager.getActiveProvider();
-  if (provider) {
-    const cloudPath = volume.cloudPath || `${volume.series_title}/${volume.volume_title}.cbz`;
-    const aiPath = cloudPath.replace(/\.(cbz|zip|cbr|rar|7z)$/i, '.mokuro-ai.json').toLowerCase();
-    const discoveryKey = `${provider.type}:${aiPath}`;
-    let remoteAi: CloudFileMetadata | undefined;
-    if (pollAi) {
-      remoteAi = (await provider.listCloudVolumes()).find(
-        (file) => file.path.toLowerCase() === aiPath
-      );
-      if (remoteAi) discoveredAiFiles.set(discoveryKey, remoteAi);
-    } else {
-      remoteAi =
-        unifiedCloudManager
-          .getAllCloudVolumes()
-          .find((file) => file.path.toLowerCase() === aiPath) ||
-        discoveredAiFiles.get(discoveryKey);
-    }
-    if (remoteAi) {
-      const existingAi = await db.volume_ai.get(volume.volume_uuid);
-      const remoteVersion = `${remoteAi.fileId}:${remoteAi.modifiedTime || ''}:${remoteAi.size || ''}`;
-      if (!existingAi || downloadedAiVersions.get(discoveryKey) !== remoteVersion) {
-        try {
-          await downloadAiSidecar(provider, remoteAi, volume, existingAi);
-          downloadedAiVersions.set(discoveryKey, remoteVersion);
-        } catch (error) {
-          console.warn(
-            `Failed to refresh AI sidecar after ${AI_DOWNLOAD_ATTEMPTS} attempts:`,
-            error
-          );
-        }
-      }
+  if (!provider) return false;
+
+  const cloudPath = volume.cloudPath || `${volume.series_title}/${volume.volume_title}.cbz`;
+  const aiPath = cloudPath.replace(/\.(cbz|zip|cbr|rar|7z)$/i, '.mokuro-ai.json').toLowerCase();
+  const discoveryKey = `${provider.type}:${aiPath}`;
+  let remoteAi: CloudFileMetadata | undefined;
+  if (refreshListing) {
+    remoteAi = (await provider.listCloudVolumes()).find(
+      (file) => file.path.toLowerCase() === aiPath
+    );
+    if (remoteAi) discoveredAiFiles.set(discoveryKey, remoteAi);
+  } else {
+    remoteAi =
+      unifiedCloudManager.getAllCloudVolumes().find((file) => file.path.toLowerCase() === aiPath) ||
+      discoveredAiFiles.get(discoveryKey);
+  }
+  if (!remoteAi) return false;
+
+  const existingAi = await db.volume_ai.get(volume.volume_uuid);
+  const remoteVersion = `${remoteAi.fileId}:${remoteAi.modifiedTime || ''}:${remoteAi.size || ''}`;
+  if (!existingAi || downloadedAiVersions.get(discoveryKey) !== remoteVersion) {
+    try {
+      const changed = await downloadAiSidecar(provider, remoteAi, volume, existingAi);
+      downloadedAiVersions.set(discoveryKey, remoteVersion);
+      return changed;
+    } catch (error) {
+      console.warn(`Failed to refresh AI sidecar after ${AI_DOWNLOAD_ATTEMPTS} attempts:`, error);
     }
   }
+  return false;
+}
+
+async function loadCurrentVolumeData(volume: VolumeMetadata): Promise<VolumeData | undefined> {
+  await refreshAiSidecar(volume);
   let [ocr, files, ai] = await Promise.all([
     db.volume_ocr.get(volume.volume_uuid),
     db.volume_files.get(volume.volume_uuid),
@@ -210,6 +209,7 @@ export const currentVolumeData: Readable<VolumeData | undefined> = derived(
   [currentVolume, unifiedCloudManager.cloudFiles],
   ([$currentVolume], set: (value: VolumeData | undefined) => void) => {
     let cancelled = false;
+    let refreshing = false;
     let refreshTimer: ReturnType<typeof setInterval> | undefined;
     // Track the last volume UUID to avoid unnecessary clears
     // This prevents flash when unrelated volumes are added to the database
@@ -220,27 +220,53 @@ export const currentVolumeData: Readable<VolumeData | undefined> = derived(
     if (newUuid !== currentVolumeDataLastUuid) {
       currentVolumeDataLastUuid = newUuid;
       currentVolumeDataLastVersion = undefined;
+      currentVolumeDataLastValue = undefined;
       // Clear old data synchronously to prevent state leaks between volumes
       set(undefined);
     }
 
     if ($currentVolume) {
-      const refresh = async (pollAi = false) => {
+      const refresh = async () => {
+        if (refreshing) return;
+        refreshing = true;
         try {
-          const volumeData = await loadCurrentVolumeData($currentVolume, pollAi);
+          const volumeData = await loadCurrentVolumeData($currentVolume);
           if (!cancelled && volumeData) {
             const version = `${volumeData.volume_uuid}:${volumeData.ai?.updated_at || 0}:${volumeData.ai?.pages.length || 0}`;
             if (version !== currentVolumeDataLastVersion) {
               currentVolumeDataLastVersion = version;
+              currentVolumeDataLastValue = volumeData;
               set(volumeData);
             }
           }
         } catch (error) {
           console.error('Failed to load current volume data:', error);
+        } finally {
+          refreshing = false;
+        }
+      };
+      const pollAi = async () => {
+        if (refreshing) return;
+        refreshing = true;
+        try {
+          const changed = await refreshAiSidecar($currentVolume, true);
+          if (!cancelled && changed && currentVolumeDataLastValue) {
+            const ai = await db.volume_ai.get($currentVolume.volume_uuid);
+            if (ai) {
+              const volumeData = { ...currentVolumeDataLastValue, ai };
+              currentVolumeDataLastValue = volumeData;
+              currentVolumeDataLastVersion = `${volumeData.volume_uuid}:${ai.updated_at}:${ai.pages.length}`;
+              set(volumeData);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to refresh current volume AI:', error);
+        } finally {
+          refreshing = false;
         }
       };
       void refresh();
-      refreshTimer = setInterval(() => void refresh(true), AI_REFRESH_INTERVAL_MS);
+      refreshTimer = setInterval(() => void pollAi(), AI_REFRESH_INTERVAL_MS);
     }
 
     return () => {
@@ -254,6 +280,7 @@ export const currentVolumeData: Readable<VolumeData | undefined> = derived(
 // Track last volume UUID to prevent unnecessary data clears
 let currentVolumeDataLastUuid: string | undefined;
 let currentVolumeDataLastVersion: string | undefined;
+let currentVolumeDataLastValue: VolumeData | undefined;
 
 /**
  * Japanese character count for current volume.
