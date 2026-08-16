@@ -705,6 +705,7 @@
     class="textBox"
     class:originalMode={isOriginalMode}
     class:perLine={usePerLine}
+    class:verticalText={writingMode === 'vertical-rl'}
     class:forceVisible
     class:alwaysVisible={alwaysShowOCR}
     class:tapVisible={openOcrBlock === blockIndex}
@@ -904,12 +905,21 @@
   .textBox ruby {
     ruby-position: over;
     ruby-align: center;
+    ruby-overhang: none;
   }
 
   .textBox rt {
-    font-size: 0.45em;
+    font-size: 0.42em;
     font-weight: 400;
     letter-spacing: 0;
+  }
+
+  /* In vertical-rl, `over` places ruby on the right of its base glyphs. Pull
+     it slightly back toward that column so it stays out of the neighbouring
+     column's full-size text without introducing a conspicuous gap. */
+  .textBox.verticalText rt {
+    position: relative;
+    left: -0.12em;
   }
 
   /* A quad that captured multiple print columns (base text + furigana):

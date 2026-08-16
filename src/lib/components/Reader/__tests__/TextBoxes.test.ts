@@ -201,6 +201,7 @@ describe('TextBoxes auto mode with lines_coords', () => {
       'けっかい',
       'かのう'
     ]);
+    expect(container.querySelector('.textBox.verticalText')).toBeTruthy();
   });
 
   it('opens translation and contextual word details from an AI sidecar page', async () => {
