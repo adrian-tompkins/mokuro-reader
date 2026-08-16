@@ -251,6 +251,7 @@ describe('TextBoxes auto mode with lines_coords', () => {
     const panel = translation.closest('.aiPanel.desktopViewportPanel') as HTMLElement;
     expect(panel.style.fontSize).toBe('14px');
     expect(panel.style.maxWidth).toContain('640px');
+    expect(panel.querySelector('.aiDragHandle')?.textContent).toBe('Translation');
     expect(queryByText('Copy EN')).toBeNull();
     await fireEvent.click(getByText('可能'));
     expect(document.body.querySelector('.aiWordDetail')?.textContent).toContain('possible');

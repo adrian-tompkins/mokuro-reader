@@ -639,6 +639,10 @@
   let desktopPanelLeft = $state(12);
   let desktopPanelTop = $state<number | null>(null);
   let desktopPanelBottom = $state<number | null>(null);
+  let draggingAiPanel = $state(false);
+  let aiPanelDrag:
+    | { pointerId: number; offsetX: number; offsetY: number; panel: HTMLElement }
+    | undefined;
 
   function portalToBody(node: HTMLElement, enabled: boolean) {
     if (enabled) document.body.appendChild(node);
@@ -692,6 +696,61 @@
     openAiBlock = null;
     openOcrBlock = null;
     openAiWord = null;
+  }
+
+  function startAiPanelDrag(event: PointerEvent) {
+    event.stopPropagation();
+    if (mobileAiPanel || event.button !== 0) return;
+    const target = event.target as Element | null;
+    if (!target?.closest('.aiDragHandle')) return;
+
+    const panel = event.currentTarget as HTMLElement;
+    const rect = panel.getBoundingClientRect();
+    desktopPanelLeft = rect.left;
+    desktopPanelTop = rect.top;
+    desktopPanelBottom = null;
+    aiPanelDrag = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      panel
+    };
+    draggingAiPanel = true;
+    try {
+      panel.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture can be unavailable in synthetic/test environments.
+    }
+    event.preventDefault();
+  }
+
+  function moveAiPanel(event: PointerEvent) {
+    const drag = aiPanelDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    event.stopPropagation();
+    const rect = drag.panel.getBoundingClientRect();
+    const margin = 8;
+    desktopPanelLeft = Math.max(
+      margin,
+      Math.min(event.clientX - drag.offsetX, window.innerWidth - rect.width - margin)
+    );
+    desktopPanelTop = Math.max(
+      margin,
+      Math.min(event.clientY - drag.offsetY, window.innerHeight - rect.height - margin)
+    );
+  }
+
+  function endAiPanelDrag(event: PointerEvent) {
+    const drag = aiPanelDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    event.stopPropagation();
+    try {
+      drag.panel.releasePointerCapture(event.pointerId);
+    } catch {
+      // It may already have been released by the browser.
+    }
+    aiPanelDrag = undefined;
+    draggingAiPanel = false;
   }
 </script>
 
@@ -763,6 +822,7 @@
           class="aiPanel"
           class:desktopViewportPanel={!mobileAiPanel}
           class:mobileViewportPanel={mobileAiPanel}
+          class:dragging={draggingAiPanel}
           style:font-size={!mobileAiPanel ? `${$settings.translationPanelFontSize}px` : undefined}
           style:max-width={!mobileAiPanel
             ? `min(${$settings.translationPanelMaxWidth}px, calc(100vw - 24px))`
@@ -774,9 +834,12 @@
           style:bottom={!mobileAiPanel && desktopPanelBottom !== null
             ? `${desktopPanelBottom}px`
             : undefined}
-          onpointerdown={(event) => event.stopPropagation()}
+          onpointerdown={startAiPanelDrag}
+          onpointermove={moveAiPanel}
+          onpointerup={endAiPanelDrag}
+          onpointercancel={endAiPanelDrag}
         >
-          <div class="aiHeading">Translation</div>
+          <div class="aiHeading aiDragHandle">Translation</div>
           <div>{ai.translation}</div>
           {#if ai.corrected_lines.join('') !== ai.source_lines.join('')}
             <div class="aiHeading">OCR correction</div>
@@ -977,6 +1040,13 @@
     box-sizing: border-box;
     overflow-wrap: anywhere;
     z-index: 10000;
+  }
+  .desktopViewportPanel .aiDragHandle {
+    cursor: grab;
+    user-select: none;
+  }
+  .desktopViewportPanel.dragging .aiDragHandle {
+    cursor: grabbing;
   }
   .aiHeading {
     margin-top: 10px;
