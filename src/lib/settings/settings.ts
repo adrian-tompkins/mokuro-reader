@@ -145,6 +145,10 @@ export type Settings = {
   showTimer: boolean;
   quickActions: boolean;
   fontSize: FontSize;
+  /** Desktop AI translation panel body font size in CSS pixels. */
+  translationPanelFontSize: number;
+  /** Desktop AI translation panel maximum width in CSS pixels. */
+  translationPanelMaxWidth: number;
   zoomDefault: ZoomModes;
   pageTransition: PageTransition;
   nightMode: boolean;
@@ -282,6 +286,8 @@ const defaultSettings: Settings = {
   showTimer: false,
   quickActions: true,
   fontSize: 'auto',
+  translationPanelFontSize: 14,
+  translationPanelMaxWidth: 640,
   zoomDefault: 'zoomFitToScreen',
   pageTransition: 'none',
   nightMode: false,

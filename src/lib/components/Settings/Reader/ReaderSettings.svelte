@@ -159,6 +159,34 @@
     <!-- 5. If paged: Page transition dropdown -->
     <ReaderSelects />
 
+    <div>
+      <Label class="text-gray-900 dark:text-white">
+        Translation font size: {$settings.translationPanelFontSize}px
+      </Label>
+      <Range
+        min={12}
+        max={30}
+        step={1}
+        value={$settings.translationPanelFontSize}
+        onchange={(e) =>
+          updateSetting('translationPanelFontSize', Number((e.target as HTMLInputElement).value))}
+      />
+    </div>
+
+    <div>
+      <Label class="text-gray-900 dark:text-white">
+        Translation maximum width: {$settings.translationPanelMaxWidth}px
+      </Label>
+      <Range
+        min={320}
+        max={1200}
+        step={20}
+        value={$settings.translationPanelMaxWidth}
+        onchange={(e) =>
+          updateSetting('translationPanelMaxWidth', Number((e.target as HTMLInputElement).value))}
+      />
+    </div>
+
     <hr class="border-gray-100 opacity-10" />
 
     <!-- 6. Volume settings section -->

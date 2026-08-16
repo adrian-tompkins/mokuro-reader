@@ -15,6 +15,8 @@ vi.mock('$lib/settings', async () => {
       alwaysShowOCR: true,
       textBoxBorders: false,
       textEditable: false,
+      translationPanelFontSize: 14,
+      translationPanelMaxWidth: 640,
       ankiConnectSettings: { triggerMethod: 'doubleTap', tags: [], cardMode: 'single' }
     }),
     volumes: writable({})
@@ -243,7 +245,11 @@ describe('TextBoxes auto mode with lines_coords', () => {
     expect(queryByText('AI')).toBeNull();
     await fireEvent.pointerDown(textBox!);
     await fireEvent.click(textBox!);
-    expect(getByText('It makes entering and leaving the barrier possible.')).toBeTruthy();
+    const translation = getByText('It makes entering and leaving the barrier possible.');
+    expect(translation).toBeTruthy();
+    const panel = translation.closest('.aiPanel.desktopViewportPanel') as HTMLElement;
+    expect(panel.style.fontSize).toBe('14px');
+    expect(panel.style.maxWidth).toContain('640px');
     expect(queryByText('Copy EN')).toBeNull();
     await fireEvent.click(getByText('可能'));
     expect(document.body.querySelector('.aiWordDetail')?.textContent).toContain('possible');

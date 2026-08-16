@@ -669,7 +669,7 @@
 
     if (!mobileAiPanel) {
       const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
-      const panelWidth = Math.min(640, window.innerWidth - 24);
+      const panelWidth = Math.min($settings.translationPanelMaxWidth, window.innerWidth - 24);
       desktopPanelLeft = Math.max(12, Math.min(box.left, window.innerWidth - panelWidth - 12));
 
       const spaceBelow = window.innerHeight - box.bottom;
@@ -762,6 +762,10 @@
           class="aiPanel"
           class:desktopViewportPanel={!mobileAiPanel}
           class:mobileViewportPanel={mobileAiPanel}
+          style:font-size={!mobileAiPanel ? `${$settings.translationPanelFontSize}px` : undefined}
+          style:max-width={!mobileAiPanel
+            ? `min(${$settings.translationPanelMaxWidth}px, calc(100vw - 24px))`
+            : undefined}
           style:left={!mobileAiPanel ? `${desktopPanelLeft}px` : undefined}
           style:top={!mobileAiPanel && desktopPanelTop !== null
             ? `${desktopPanelTop}px`
@@ -960,7 +964,9 @@
   }
   .aiPanel.desktopViewportPanel {
     position: fixed;
-    width: min(40rem, calc(100vw - 24px));
+    width: max-content;
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
     z-index: 10000;
   }
   .aiHeading {
