@@ -490,6 +490,7 @@ describe('ContinuousZoomController — geometry robustness', () => {
 
     c.gestureStart(500, 400);
     c.gestureChange(2, 550, 380);
+    pump(1);
     expect(world.zoom).toBe(2);
     expect(world.scrollLeft).toBeCloseTo(450, 4);
     expect(world.scrollTop).toBeCloseTo(1020, 4);
@@ -497,6 +498,37 @@ describe('ContinuousZoomController — geometry robustness', () => {
     c.gestureEnd();
     pump();
     expect(settled).toHaveBeenCalledTimes(1);
+  });
+
+  it('coalesces Safari trackpad changes to one layout per display frame', () => {
+    const world = tallPageWorld();
+    const c = makeController(world);
+
+    c.gestureStart(500, 400);
+    c.gestureChange(1.2, 510, 400);
+    c.gestureChange(1.5, 525, 390);
+    c.gestureChange(2, 550, 380);
+
+    expect(world.applyZoomLayoutCalls).toHaveLength(0);
+    pump(1);
+    expect(world.applyZoomLayoutCalls).toEqual([2]);
+    expect(world.scrollLeft).toBeCloseTo(450, 4);
+    expect(world.scrollTop).toBeCloseTo(1020, 4);
+  });
+
+  it('flushes the final Safari scale when gestureend precedes the frame', () => {
+    const world = tallPageWorld();
+    const settled = vi.fn();
+    const c = makeController(world, { settled });
+
+    c.gestureStart(500, 400);
+    c.gestureChange(1.75, 500, 400);
+    c.gestureEnd();
+
+    expect(world.zoom).toBe(1.75);
+    expect(settled).toHaveBeenCalledTimes(1);
+    pump(1);
+    expect(world.applyZoomLayoutCalls).toEqual([1.75]);
   });
 });
 

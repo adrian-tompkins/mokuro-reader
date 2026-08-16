@@ -164,6 +164,14 @@ export class ContinuousZoomController {
   private pinchStartDist = 0;
   private pinchStartZoom = 1;
   private gestureBaseZoom = 1;
+  // Safari can emit several trackpad gesturechange events between display
+  // frames. Applying each one synchronously forces repeated layout across the
+  // entire continuous reader. Keep only the newest sample and render it once
+  // per animation frame. Pointer/touch pinches deliberately retain their
+  // existing direct path.
+  private gestureFrame: number | null = null;
+  private gestureFrameGeneration = 0;
+  private pendingGesture: { scale: number; point: Point } | null = null;
 
   constructor(config: ZoomControllerConfig) {
     this.config = config;
@@ -300,6 +308,7 @@ export class ContinuousZoomController {
 
   // Safari desktop trackpad pinch (proprietary gesture events).
   gestureStart(x: number, y: number): void {
+    this.cancelGestureFrame();
     if (!this.pinching && this.animator.isAnimating) this.finishNow();
     if (!this.captureAnchor(x, y)) return;
     this.pinching = true;
@@ -314,11 +323,37 @@ export class ContinuousZoomController {
 
   gestureChange(scale: number, x: number, y: number): void {
     if (!this.pinching) return;
-    this.applyPinchZoom(this.gestureBaseZoom * scale, { x, y });
+    this.pendingGesture = { scale, point: { x, y } };
+    if (this.gestureFrame !== null) return;
+
+    const generation = this.gestureFrameGeneration;
+    this.gestureFrame = requestAnimationFrame(() => {
+      if (generation !== this.gestureFrameGeneration) return;
+      this.gestureFrame = null;
+      this.flushGestureFrame();
+    });
   }
 
   gestureEnd(): void {
+    // gestureend can arrive before the scheduled display frame. Commit the
+    // latest scale synchronously so the user's final movement is never lost.
+    this.cancelGestureFrame(false);
+    this.flushGestureFrame();
     this.pinchEnd();
+  }
+
+  private flushGestureFrame(): void {
+    const pending = this.pendingGesture;
+    this.pendingGesture = null;
+    if (!pending || !this.pinching) return;
+    this.applyPinchZoom(this.gestureBaseZoom * pending.scale, pending.point);
+  }
+
+  private cancelGestureFrame(clearPending = true): void {
+    this.gestureFrameGeneration += 1;
+    if (this.gestureFrame !== null) cancelAnimationFrame(this.gestureFrame);
+    this.gestureFrame = null;
+    if (clearPending) this.pendingGesture = null;
   }
 
   private applyPinchZoom(rawZoom: number, mid: Point): void {
@@ -342,6 +377,7 @@ export class ContinuousZoomController {
    * scroll-intent wheel, new drag) so they act on settled geometry.
    */
   finishNow(reason: 'interrupt' | 'nav' = 'interrupt'): void {
+    this.cancelGestureFrame();
     if (this.pinching) {
       this.pinching = false;
       this.target = nearestZoomLevel(this.levels, this.animator.current);
@@ -370,6 +406,7 @@ export class ContinuousZoomController {
    * annoyance.
    */
   snapToLevel(level: number): void {
+    this.cancelGestureFrame();
     this.pinching = false;
     this.target = level;
     this.anchorEl = null; // skip anchor correction; layout placement only
@@ -378,6 +415,7 @@ export class ContinuousZoomController {
   }
 
   destroy(): void {
+    this.cancelGestureFrame();
     this.animator.destroy();
   }
 
