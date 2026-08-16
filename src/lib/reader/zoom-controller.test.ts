@@ -269,6 +269,42 @@ describe('ContinuousZoomController — pinch', () => {
 });
 
 describe('ContinuousZoomController — wheel', () => {
+  it('scales Chromium trackpad pinch continuously without level ticks', () => {
+    const world = tallPageWorld();
+    const c = makeController(world);
+
+    c.wheelPinch({ deltaY: -10, deltaMode: 0, clientX: 500, clientY: 400, timeStamp: 0 });
+    c.wheelPinch({ deltaY: -10, deltaMode: 0, clientX: 500, clientY: 400, timeStamp: 16 });
+    pump(1);
+
+    expect(world.zoom).toBeCloseTo(Math.exp(0.2), 6);
+    expect(world.zoom).toBeGreaterThan(1);
+    expect(world.zoom).toBeLessThan(1.5);
+    c.endWheelPinch();
+    c.destroy();
+  });
+
+  it('coalesces Chromium pinch samples while retaining their cumulative scale', () => {
+    const world = tallPageWorld();
+    const c = makeController(world);
+
+    for (let i = 0; i < 4; i++) {
+      c.wheelPinch({
+        deltaY: -5,
+        deltaMode: 0,
+        clientX: 500,
+        clientY: 400,
+        timeStamp: i * 4
+      });
+    }
+    expect(world.applyZoomLayoutCalls).toHaveLength(0);
+    pump(1);
+    expect(world.applyZoomLayoutCalls).toHaveLength(1);
+    expect(world.zoom).toBeCloseTo(Math.exp(0.2), 6);
+    c.endWheelPinch();
+    c.destroy();
+  });
+
   it('one notch zooms one level anchored at the cursor', () => {
     const world = tallPageWorld();
     const settled = vi.fn();

@@ -37,6 +37,10 @@ const ZOOM_EPS = 0.001;
 const SNAP_TO_ONE_BELOW = 1.05;
 /** Double-tap zoom-in target level. */
 const DOUBLE_TAP_ZOOM = 2;
+/** Chromium trackpad pinch sensitivity for its synthetic Ctrl+wheel deltas. */
+const WHEEL_PINCH_SENSITIVITY = 0.01;
+/** A synthetic pinch is complete after Chromium stops delivering wheel events. */
+const WHEEL_PINCH_IDLE_MS = 140;
 
 const CONTINUOUS_ZOOM_LEVELS: readonly number[] = [1, 1.5, 2, 3];
 
@@ -172,6 +176,9 @@ export class ContinuousZoomController {
   private gestureFrame: number | null = null;
   private gestureFrameGeneration = 0;
   private pendingGesture: { scale: number; point: Point } | null = null;
+  private wheelPinchActive = false;
+  private wheelPinchTarget = 1;
+  private wheelPinchTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(config: ZoomControllerConfig) {
     this.config = config;
@@ -219,6 +226,41 @@ export class ContinuousZoomController {
       next = nextZoomLevel(this.levels, next, direction);
     }
     this.stepTo(next, { x: e.clientX, y: e.clientY });
+  }
+
+  /**
+   * Chromium precision-trackpad pinch, represented by Ctrl+pixel-wheel.
+   * Unlike wheelZoom this keeps every fractional delta, uses the same anchor
+   * geometry as touch/Safari pinch, and coalesces rendering to one update per
+   * display frame through gestureChange.
+   */
+  wheelPinch(e: ZoomWheelEventLike): void {
+    if (!this.wheelPinchActive) {
+      this.gestureStart(e.clientX, e.clientY);
+      if (!this.pinching) return;
+      this.wheelPinchActive = true;
+      this.wheelPinchTarget = this.animator.current;
+    }
+
+    const min = this.levels[0];
+    const max = this.levels[this.levels.length - 1];
+    this.wheelPinchTarget = Math.max(
+      min,
+      Math.min(max, this.wheelPinchTarget * Math.exp(-e.deltaY * WHEEL_PINCH_SENSITIVITY))
+    );
+    this.gestureChange(this.wheelPinchTarget / this.gestureBaseZoom, e.clientX, e.clientY);
+
+    if (this.wheelPinchTimer !== null) clearTimeout(this.wheelPinchTimer);
+    this.wheelPinchTimer = setTimeout(() => this.endWheelPinch(), WHEEL_PINCH_IDLE_MS);
+  }
+
+  /** Public test/interruption seam; normal gestures end via the idle timer. */
+  endWheelPinch(): void {
+    if (this.wheelPinchTimer !== null) clearTimeout(this.wheelPinchTimer);
+    this.wheelPinchTimer = null;
+    if (!this.wheelPinchActive) return;
+    this.wheelPinchActive = false;
+    this.gestureEnd();
   }
 
   /**
@@ -356,6 +398,12 @@ export class ContinuousZoomController {
     if (clearPending) this.pendingGesture = null;
   }
 
+  private cancelWheelPinch(): void {
+    if (this.wheelPinchTimer !== null) clearTimeout(this.wheelPinchTimer);
+    this.wheelPinchTimer = null;
+    this.wheelPinchActive = false;
+  }
+
   private applyPinchZoom(rawZoom: number, mid: Point): void {
     const min = this.levels[0];
     const max = this.levels[this.levels.length - 1];
@@ -377,6 +425,7 @@ export class ContinuousZoomController {
    * scroll-intent wheel, new drag) so they act on settled geometry.
    */
   finishNow(reason: 'interrupt' | 'nav' = 'interrupt'): void {
+    this.cancelWheelPinch();
     this.cancelGestureFrame();
     if (this.pinching) {
       this.pinching = false;
@@ -406,6 +455,7 @@ export class ContinuousZoomController {
    * annoyance.
    */
   snapToLevel(level: number): void {
+    this.cancelWheelPinch();
     this.cancelGestureFrame();
     this.pinching = false;
     this.target = level;
@@ -415,6 +465,7 @@ export class ContinuousZoomController {
   }
 
   destroy(): void {
+    this.cancelWheelPinch();
     this.cancelGestureFrame();
     this.animator.destroy();
   }

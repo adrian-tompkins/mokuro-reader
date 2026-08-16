@@ -18,7 +18,8 @@
     gapWheelSteps,
     normalizeWheelDelta,
     wheelIntentIsGapAdjust,
-    wheelIntentIsZoom
+    wheelIntentIsZoom,
+    wheelIsSyntheticPinch
   } from '$lib/reader/zoom-math';
   import { pagedZoom, type PagedZoomApi } from '$lib/reader/paged-zoom';
   import { PointerGestureTracker, zoomGestureConfig } from '$lib/reader/input/pointer-tracker';
@@ -160,7 +161,8 @@
     if (wheelIntentIsZoom(modifier, $settings.swapWheelBehavior)) {
       e.preventDefault();
       motion.beforeZoom();
-      controller.wheelZoom(e);
+      if (wheelIsSyntheticPinch(e)) controller.wheelPinch(e);
+      else controller.wheelZoom(e);
       return;
     }
     e.preventDefault();

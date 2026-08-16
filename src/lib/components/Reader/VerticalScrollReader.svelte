@@ -17,7 +17,8 @@
     gapWheelSteps,
     normalizeWheelDelta,
     wheelIntentIsGapAdjust,
-    wheelIntentIsZoom
+    wheelIntentIsZoom,
+    wheelIsSyntheticPinch
   } from '$lib/reader/zoom-math';
   import { gestureTargetRole, keyboardShouldIgnore } from '$lib/reader/input/gesture-target';
   import { volumeEdgeNav } from '$lib/reader/page-nav';
@@ -378,7 +379,8 @@
     if (wheelIntentIsZoom(modifier, $settings.swapWheelBehavior)) {
       e.preventDefault();
       motion.beforeZoom();
-      zoomController.wheelZoom(e);
+      if (wheelIsSyntheticPinch(e)) zoomController.wheelPinch(e);
+      else zoomController.wheelZoom(e);
       return;
     }
 

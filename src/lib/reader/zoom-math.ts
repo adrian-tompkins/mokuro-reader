@@ -112,6 +112,19 @@ export function wheelIntentIsZoom(ctrlOrMeta: boolean, swapWheelBehavior: boolea
   return swapWheelBehavior ? !ctrlOrMeta : ctrlOrMeta;
 }
 
+/**
+ * Chromium exposes a precision-touchpad pinch as a pixel-mode wheel stream
+ * with ctrlKey set. Safari has real gesture events and Firefox reports its
+ * own continuous stream; this predicate targets Chromium's representation.
+ * A physical Ctrl+wheel is indistinguishable at the DOM API level, so it also
+ * receives the smoother continuous behaviour when emitted in pixel mode.
+ */
+export function wheelIsSyntheticPinch(
+  e: Pick<WheelEvent, 'ctrlKey' | 'metaKey' | 'deltaMode'>
+): boolean {
+  return e.ctrlKey && !e.metaKey && e.deltaMode === 0;
+}
+
 /** Normalize a wheel delta to pixels across deltaMode values. */
 export function normalizeWheelDelta(deltaY: number, deltaMode: number): number {
   if (deltaMode === 1) return deltaY * 40; // lines (Firefox)

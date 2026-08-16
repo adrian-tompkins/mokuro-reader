@@ -7,6 +7,7 @@ import {
   nearestZoomLevel,
   nextZoomLevel,
   wheelIntentIsZoom,
+  wheelIsSyntheticPinch,
   wheelIntentIsGapAdjust,
   gapWheelSteps,
   GAP_WHEEL_STEP_SIZE,
@@ -150,6 +151,17 @@ describe('wheelIntentIsZoom', () => {
   it('inverts with swapWheelBehavior', () => {
     expect(wheelIntentIsZoom(false, true)).toBe(true);
     expect(wheelIntentIsZoom(true, true)).toBe(false);
+  });
+});
+
+describe('wheelIsSyntheticPinch', () => {
+  it('recognises Chromium Ctrl+pixel-wheel pinch events', () => {
+    expect(wheelIsSyntheticPinch({ ctrlKey: true, metaKey: false, deltaMode: 0 })).toBe(true);
+  });
+
+  it('keeps Meta-wheel and line-mode mouse wheels on the stepped path', () => {
+    expect(wheelIsSyntheticPinch({ ctrlKey: false, metaKey: true, deltaMode: 0 })).toBe(false);
+    expect(wheelIsSyntheticPinch({ ctrlKey: true, metaKey: false, deltaMode: 1 })).toBe(false);
   });
 });
 
